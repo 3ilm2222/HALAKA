@@ -46,13 +46,13 @@ const config: ExpoConfig = {
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "automatic",
-  newArchEnabled: true,
+  newArchEnabled: false,
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
-    "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   android: {
     adaptiveIcon: {
@@ -89,43 +89,18 @@ const config: ExpoConfig = {
     [
       "expo-notifications",
       {
-        "icon": "./assets/images/favicon.png",
-        "color": "#176B53",
-        "defaultChannel": "teacher-notes"
-      }
+        icon: "./assets/images/favicon.png",
+        color: "#176B53",
+        defaultChannel: "teacher-notes",
+      },
     ],
     [
       "expo-image-picker",
       {
-        "photosPermission": "السماح للتطبيق باختيار صور لإضافتها إلى سبورة الطالب."
-      }
+        photosPermission: "السماح للتطبيق باختيار صور لإضافتها إلى سبورة الطالب.",
+      },
     ],
     "expo-secure-store",
-    [
-      "expo-audio",
-      {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
-      },
-    ],
-    [
-      "expo-splash-screen",
-      {
-        image: "./assets/images/splash-icon.png",
-        imageWidth: 200,
-        resizeMode: "contain",
-        backgroundColor: "#ffffff",
-        dark: {
-          backgroundColor: "#000000",
-        },
-      },
-    ],
     [
       "expo-build-properties",
       {
@@ -142,7 +117,6 @@ const config: ExpoConfig = {
   },
   experiments: {
     typedRoutes: true,
-    reactCompiler: true,
   },
 };
 
