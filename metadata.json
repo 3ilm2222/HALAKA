@@ -1,0 +1,8 @@
+{
+  "name": "سجل الطالب القرآني",
+  "description": "منصة وسجل متابعة طلاب مدرسة القرآن الكريم للمعلمين وأولياء الأمور وإدارة الحلقات والسبورات الشهرية والغياب",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

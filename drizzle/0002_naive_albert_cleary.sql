@@ -1,0 +1,1 @@
+ALTER TABLE `monthly_boards` ADD `canvasHeight` int DEFAULT 560 NOT NULL;
