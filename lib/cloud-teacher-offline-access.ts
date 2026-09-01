@@ -25,6 +25,17 @@ export async function saveOfflineTeacherAccess(pin: string, sessionToken: string
   await writeRaw(JSON.stringify(access));
 }
 
+export async function hasConfiguredOfflineTeacherAccess(): Promise<boolean> {
+  const raw = await readRaw();
+  if (!raw) return false;
+  try {
+    const access = JSON.parse(raw) as Partial<OfflineTeacherAccess>;
+    return Boolean(access.pinHash && access.sessionToken);
+  } catch {
+    return false;
+  }
+}
+
 export async function unlockOfflineTeacherAccess(pin: string): Promise<string | null> {
   const raw = await readRaw();
   if (!raw) return null;

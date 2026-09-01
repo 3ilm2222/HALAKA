@@ -126,6 +126,7 @@ export async function schoolApi<T>(action: string, payload: Record<string, unkno
 
 export const supabaseSchool = {
   teacherStatus: () => schoolApi<{ configured: boolean; googleLinked: boolean }>("teacher.status"),
+  teacherSetup: (localPin: string, displayName?: string, setupKey?: string) => schoolApi<{ teacher: { id: string; displayName: string } }>("teacher.setup", { localPin: localPin.trim(), displayName: displayName ?? "المعلم", ...(setupKey ? { setupKey } : {}) }),
   teacherLogin: (localPin: string) => schoolApi<{ sessionToken: string; expiresAt: string; teacher: { id: string; displayName: string } }>("teacher.login", { localPin: localPin.trim() }),
   teacherSnapshot: (sessionToken: string) => schoolApi<{ students: SchoolStudent[]; boards: SchoolBoard[]; attendance: SchoolAttendance[]; messages: SchoolMessage[]; news: SchoolNews[] }>("teacher.snapshot", { sessionToken }),
   teacherDetail: (sessionToken: string, studentId: string) => schoolApi<{ student: SchoolStudent; boards: SchoolBoard[]; attendance: SchoolAttendance[]; messages: SchoolMessage[]; parentNotification: ParentNotificationStatus }>("teacher.detail", { sessionToken, studentId }),
