@@ -87,14 +87,6 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     [
-      "expo-notifications",
-      {
-        icon: "./assets/images/favicon.png",
-        color: "#176B53",
-        defaultChannel: "teacher-notes",
-      },
-    ],
-    [
       "expo-image-picker",
       {
         photosPermission: "السماح للتطبيق باختيار صور لإضافتها إلى سبورة الطالب.",

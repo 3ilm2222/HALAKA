@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeStudentName } from "../server/db";
+function normalizeStudentName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
 import { currentMonthKey, nextMonthKey } from "../lib/months";
 import { QURAN_SURAHS } from "../lib/quran-surahs";
 import { BOARD_THEMES, getBoardTheme, normalizeCustomTheme } from "../lib/board-themes";

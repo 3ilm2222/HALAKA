@@ -4,14 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import path from "path";
 import fs from "fs";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { createProxyMiddleware } from "http-proxy-middleware";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
-import { sdk } from "./sdk";
-import { appRouter } from "../routers";
-import { createDailyBackupForConfiguredTeacher } from "../cloud-backup";
-import { createContext } from "./context";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -60,25 +53,8 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  registerStorageProxy(app);
-  registerOAuthRoutes(app);
-
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
-  });
-
-  app.post("/api/scheduled/daily-cloud-backup", async (req, res) => {
-    const user = await sdk.authenticateRequest(req).catch(() => null);
-    if (!(user as { isCron?: boolean } | null)?.isCron) {
-      res.status(401).json({ error: "Scheduled authentication required" });
-      return;
-    }
-    try {
-      const result = await createDailyBackupForConfiguredTeacher();
-      res.json({ ok: true, backupDate: result.backupDate });
-    } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : "Daily backup failed" });
-    }
   });
 
   app.post("/api/school-api", async (req, res) => {
@@ -103,14 +79,6 @@ async function startServer() {
       return res.status(502).json({ error: error instanceof Error ? error.message : "تعذر الاتصال بخدمة المدرسة السحابية." });
     }
   });
-
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    }),
-  );
 
   // Proxy web and static assets to Metro bundler on port 8081 or serve exported dist
   const isProduction = process.env.NODE_ENV === "production";
@@ -138,6 +106,14 @@ async function startServer() {
       target: `http://127.0.0.1:${metroPort}`,
       changeOrigin: true,
       ws: true,
+      onProxyReq: (proxyReq) => {
+        proxyReq.setHeader("origin", `http://127.0.0.1:${metroPort}`);
+        proxyReq.setHeader("host", `127.0.0.1:${metroPort}`);
+      },
+      onProxyReqWs: (proxyReq) => {
+        proxyReq.setHeader("origin", `http://127.0.0.1:${metroPort}`);
+        proxyReq.setHeader("host", `127.0.0.1:${metroPort}`);
+      },
       onError: (_err, _req, res) => {
         if (hasDist && !res.headersSent) {
           const indexPath = path.join(distDir, "index.html");

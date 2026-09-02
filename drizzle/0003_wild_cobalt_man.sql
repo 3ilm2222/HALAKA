@@ -1,1 +1,0 @@
-ALTER TABLE `monthly_boards` ADD `themeKey` varchar(32) DEFAULT 'classic' NOT NULL;
