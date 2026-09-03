@@ -104,8 +104,8 @@ const config: ExpoConfig = {
     ],
   ],
   extra: {
-    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-    supabasePublishableKey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || "https://ihofyzhldvuwrhtidjfm.supabase.co",
+    supabasePublishableKey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_Ul7dou1xwKZyoSj_qiqWBg_0dIRG211",
   },
   experiments: {
     typedRoutes: true,

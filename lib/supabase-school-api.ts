@@ -1,8 +1,11 @@
 import Constants from "expo-constants";
 
+const DEFAULT_SUPABASE_URL = "https://ihofyzhldvuwrhtidjfm.supabase.co";
+const DEFAULT_SUPABASE_KEY = "sb_publishable_Ul7dou1xwKZyoSj_qiqWBg_0dIRG211";
+
 const extra = (Constants.expoConfig?.extra ?? {}) as { supabaseUrl?: string; supabasePublishableKey?: string };
-const projectUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra.supabaseUrl;
-const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? extra.supabasePublishableKey;
+const projectUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra.supabaseUrl ?? DEFAULT_SUPABASE_URL;
+const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? extra.supabasePublishableKey ?? DEFAULT_SUPABASE_KEY;
 
 export type SchoolApiError = Error & { status?: number };
 
