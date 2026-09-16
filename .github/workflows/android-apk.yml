@@ -63,10 +63,17 @@ jobs:
 
       - name: Ensure Android project
         run: |
-          if [ ! -d "android" ]; then
-            pnpm exec expo prebuild --platform android --no-install
+          if [ ! -f "android/gradlew" ]; then
+            echo "android/gradlew not found. Generating complete Android native project..."
+            pnpm exec expo prebuild --platform android --clean --no-install
           else
-            echo "Native android directory already present in repository."
+            echo "android/gradlew already present in repository."
+          fi
+
+          if [ ! -f "android/gradlew" ]; then
+            echo "Error: android/gradlew could not be found or generated."
+            ls -la android || true
+            exit 1
           fi
 
       - name: Setup Java 17
@@ -79,7 +86,14 @@ jobs:
 
       - name: Make Gradle executable
         working-directory: android
-        run: chmod +x gradlew
+        run: |
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+          else
+            echo "Error: gradlew file not found in android directory!"
+            ls -la
+            exit 1
+          fi
 
       - name: Build debug APK
         working-directory: android
