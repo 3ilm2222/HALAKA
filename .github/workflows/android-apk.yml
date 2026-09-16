@@ -62,8 +62,13 @@ jobs:
           node -e "const c=require('./expo-config.json'); if(!c.extra?.supabaseUrl || !c.extra?.supabasePublishableKey) { throw new Error('Supabase configuration is missing from Expo public config.'); } else { console.log('Expo config validated successfully with URL:', c.extra.supabaseUrl); }"
           rm expo-config.json
 
-      - name: Generate Android project
-        run: pnpm exec expo prebuild --platform android --no-install
+      - name: Ensure Android project
+        run: |
+          if [ ! -d "android" ]; then
+            pnpm exec expo prebuild --platform android --no-install
+          else
+            echo "Native android directory already present in repository."
+          fi
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
