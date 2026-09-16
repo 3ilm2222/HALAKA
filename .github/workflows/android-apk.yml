@@ -98,8 +98,8 @@ jobs:
       - name: Build debug APK
         working-directory: android
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError"
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
+        run: ./gradlew assembleDebug --no-daemon --no-parallel --console=plain
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
