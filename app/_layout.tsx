@@ -31,12 +31,19 @@ export default function RootLayout() {
   // Initialize Manus runtime and immediately hide native splash screen
   useEffect(() => {
     initManusRuntime();
-    // Dismiss splash screen immediately on mount with safety fallback
-    void SplashScreen.hideAsync().catch(() => {});
-    const hideTimer = setTimeout(() => {
+    // Dismiss splash screen immediately on mount with safety fallbacks
+    const dismissSplash = () => {
       void SplashScreen.hideAsync().catch(() => {});
-    }, 50);
-    return () => clearTimeout(hideTimer);
+    };
+    dismissSplash();
+    const t1 = setTimeout(dismissSplash, 50);
+    const t2 = setTimeout(dismissSplash, 250);
+    const t3 = setTimeout(dismissSplash, 800);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, []);
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {

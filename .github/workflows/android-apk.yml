@@ -95,18 +95,28 @@ jobs:
             exit 1
           fi
 
-      - name: Build debug APK
+      - name: Ensure Android Keystore
+        working-directory: android/app
+        run: |
+          if [ ! -f "debug.keystore" ]; then
+            echo "Generating debug.keystore for APK signing..."
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          else
+            echo "debug.keystore already exists."
+          fi
+
+      - name: Build standalone APK
         working-directory: android
         env:
-          NODE_ENV: development
+          NODE_ENV: production
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
-        run: ./gradlew assembleDebug --no-daemon --no-parallel --console=plain
+        run: ./gradlew assembleRelease --no-daemon --no-parallel --console=plain
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: quran-school-students-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: quran-school-students-apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
 
