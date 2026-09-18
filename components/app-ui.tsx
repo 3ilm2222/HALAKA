@@ -94,6 +94,6 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   fieldWrap: { gap: 7 },
   fieldLabel: { color: colors.ink, fontSize: 14, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
-  input: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, color: colors.ink, fontSize: 16, minHeight: 52, paddingHorizontal: 14, writingDirection: "rtl" },
+  input: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, color: colors.ink, fontSize: 16, minHeight: 52, paddingHorizontal: 14, textAlign: "right", writingDirection: "rtl" },
   surface: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 20, borderWidth: 1, padding: 16, shadowColor: "#19372B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
 });

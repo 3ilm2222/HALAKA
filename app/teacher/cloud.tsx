@@ -228,7 +228,44 @@ export default function CloudTeacherScreen() {
     const cardStyle = tone === "fullAbsent" ? { ...styles.card, ...styles.cardFullAbsent } : tone === "partialAbsent" ? { ...styles.card, ...styles.cardPartialAbsent } : styles.card;
     const titleStyle = tone === "fullAbsent" ? { ...styles.name, ...styles.darkText } : styles.name;
     const subtitleStyle = tone === "fullAbsent" ? { ...uiStyles.pageSubtitle, ...styles.darkSubtitle } : uiStyles.pageSubtitle;
-    return <Surface style={cardStyle}><View style={styles.cardTop}><Pressable style={styles.studentInfo} onPress={() => router.push({ pathname: "/teacher/cloud-student", params: { id: student.id } })}><View style={styles.titleRow}>{ready ? <View style={styles.readyBadge}><AppIcon name="record-voice-over" color={colors.white} size={15} /><Text style={styles.readyBadgeText}>مستعد الآن</Text></View> : null}<Text style={titleStyle}>{student.name}</Text></View><Text style={subtitleStyle}>{student.age} سنة · افتح السبورة</Text></Pressable><View style={styles.readyControl}><Text style={tone === "fullAbsent" ? styles.darkReadyLabel : styles.readyLabel}>مستعد للتسميع</Text><Switch value={ready} onValueChange={() => toggleReady(student.id)} trackColor={{ false: colors.line, true: colors.green }} thumbColor={colors.white} accessibilityLabel={`تبديل حالة ${student.name} مستعد للتسميع`} /></View></View><View style={styles.actions}><SecondaryButton label={attendanceByStudent.get(student.id)?.morning_absent ? "إلغاء صباح" : "غياب صباح"} onPress={() => void toggleAttendance(student.id, "morning")} /><SecondaryButton label={attendanceByStudent.get(student.id)?.evening_absent ? "إلغاء مساء" : "غياب مساء"} onPress={() => void toggleAttendance(student.id, "evening")} /></View></Surface>;
+    return (
+      <Surface style={cardStyle}>
+        <View style={styles.cardTop}>
+          <Pressable style={styles.studentInfo} onPress={() => router.push({ pathname: "/teacher/cloud-student", params: { id: student.id } })}>
+            <View style={styles.titleRow}>
+              <Text style={titleStyle}>{student.name}</Text>
+              {ready ? (
+                <View style={styles.readyBadge}>
+                  <AppIcon name="record-voice-over" color={colors.white} size={15} />
+                  <Text style={styles.readyBadgeText}>مستعد الآن</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={subtitleStyle}>{student.age} سنة · افتح السبورة</Text>
+          </Pressable>
+          <View style={styles.readyControl}>
+            <Text style={tone === "fullAbsent" ? styles.darkReadyLabel : styles.readyLabel}>مستعد للتسميع</Text>
+            <Switch
+              value={ready}
+              onValueChange={() => toggleReady(student.id)}
+              trackColor={{ false: colors.line, true: colors.green }}
+              thumbColor={colors.white}
+              accessibilityLabel={`تبديل حالة ${student.name} مستعد للتسميع`}
+            />
+          </View>
+        </View>
+        <View style={styles.actions}>
+          <SecondaryButton
+            label={attendanceByStudent.get(student.id)?.morning_absent ? "إلغاء صباح" : "غياب صباح"}
+            onPress={() => void toggleAttendance(student.id, "morning")}
+          />
+          <SecondaryButton
+            label={attendanceByStudent.get(student.id)?.evening_absent ? "إلغاء مساء" : "غياب مساء"}
+            onPress={() => void toggleAttendance(student.id, "evening")}
+          />
+        </View>
+      </Surface>
+    );
   };
 
   if (loading) return <ScreenContainer className="items-center justify-center"><Text style={uiStyles.pageSubtitle}>جارٍ فتح ملف المعلم المحلي…</Text></ScreenContainer>;
@@ -258,5 +295,75 @@ export default function CloudTeacherScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: colors.paper }, gate: { alignItems: "center", backgroundColor: colors.paper, gap: 16, justifyContent: "center", padding: 24 }, switchLink: { alignItems: "center", flexDirection: "row-reverse", gap: 5, padding: 6 }, switchLinkText: { color: colors.gold, fontSize: 13, fontWeight: "900", textDecorationLine: "underline", writingDirection: "rtl" }, list: { flexGrow: 1, padding: 16 }, header: { gap: 14, marginBottom: 18 }, headerRow: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }, headerCopy: { flex: 1, paddingLeft: 10 }, headerActions: { alignItems: "center", flexDirection: "row-reverse", flexWrap: "wrap", gap: 8, justifyContent: "flex-start" }, icon: { backgroundColor: colors.white, borderRadius: 13, padding: 11, position: "relative" }, logoutButton: { alignItems: "center", backgroundColor: "#FFF0F0", borderColor: colors.rose, borderRadius: 13, borderWidth: 1, flexDirection: "row-reverse", gap: 4, paddingHorizontal: 10, paddingVertical: 10 }, logoutText: { color: colors.rose, fontSize: 11, fontWeight: "900", writingDirection: "rtl" }, newsButton: { alignItems: "center", backgroundColor: colors.paleGold, borderColor: colors.gold, borderRadius: 13, borderWidth: 1, flexDirection: "row-reverse", gap: 4, paddingHorizontal: 9, paddingVertical: 10 }, newsButtonText: { color: "#80601D", fontSize: 11, fontWeight: "900", writingDirection: "rtl" }, refreshButton: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.green, borderRadius: 13, borderWidth: 1, flexDirection: "row-reverse", gap: 4, paddingHorizontal: 9, paddingVertical: 10 }, refreshButtonText: { color: colors.green, fontSize: 11, fontWeight: "900", writingDirection: "rtl" }, notificationBadge: { alignItems: "center", backgroundColor: colors.rose, borderColor: colors.white, borderRadius: 11, borderWidth: 2, height: 22, justifyContent: "center", position: "absolute", right: -5, top: -5, minWidth: 22 }, notificationBadgeText: { color: colors.white, fontSize: 10, fontWeight: "900" }, syncCard: { alignItems: "center", backgroundColor: colors.paleGreen, flexDirection: "row-reverse", gap: 9, padding: 12 }, syncCardOffline: { backgroundColor: "#FFF1F0" }, syncCopy: { flex: 1 }, syncTitle: { color: colors.ink, fontSize: 13, fontWeight: "900", textAlign: "right", writingDirection: "rtl" }, syncText: { color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: "right", writingDirection: "rtl" }, syncAction: { backgroundColor: colors.green, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 }, syncActionText: { color: colors.white, fontSize: 11, fontWeight: "800" }, searchWrap: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, flexDirection: "row-reverse", minHeight: 52, paddingHorizontal: 13 }, searchInput: { color: colors.ink, flex: 1, fontSize: 15, paddingHorizontal: 8, textAlign: "right", writingDirection: "rtl" }, clearSearch: { alignItems: "center", backgroundColor: colors.paleGreen, borderRadius: 14, height: 28, justifyContent: "center", width: 28 }, chips: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }, chip: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.green, borderRadius: 18, borderWidth: 1, flexDirection: "row-reverse", gap: 6, paddingHorizontal: 12, paddingVertical: 8 }, chipActive: { alignItems: "center", backgroundColor: colors.green, borderRadius: 18, flexDirection: "row-reverse", gap: 6, paddingHorizontal: 12, paddingVertical: 8 }, chipText: { color: colors.green, fontSize: 12, fontWeight: "800", writingDirection: "rtl" }, chipTextActive: { color: colors.white, fontSize: 12, fontWeight: "800", writingDirection: "rtl" }, resultsText: { color: colors.muted, fontSize: 12, writingDirection: "rtl" }, sectionRow: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between", marginBottom: 2, marginTop: 4, paddingHorizontal: 4 }, sectionTitle: { color: colors.green, fontSize: 15, fontWeight: "900", textAlign: "right", writingDirection: "rtl" }, sectionCount: { alignItems: "center", backgroundColor: colors.paleGreen, borderRadius: 12, color: colors.green, fontSize: 11, fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 3 }, card: { gap: 8, padding: 15 }, cardPartialAbsent: { backgroundColor: "#FFF0F0", borderRightColor: colors.rose, borderRightWidth: 5 }, cardFullAbsent: { backgroundColor: "#3A2E31", borderColor: "#3A2E31", borderRightColor: "#1F1719", borderRightWidth: 5 }, cardTop: { alignItems: "center", flexDirection: "row-reverse", gap: 8, justifyContent: "space-between" }, studentInfo: { flex: 1, gap: 4 }, titleRow: { alignItems: "center", flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, name: { color: colors.ink, fontSize: 18, fontWeight: "900", textAlign: "right", writingDirection: "rtl" }, darkText: { color: colors.white }, darkSubtitle: { color: "#E9DEDF" }, readyBadge: { alignItems: "center", backgroundColor: colors.green, borderRadius: 11, flexDirection: "row-reverse", gap: 4, paddingHorizontal: 8, paddingVertical: 4 }, readyBadgeText: { color: colors.white, fontSize: 10, fontWeight: "900", writingDirection: "rtl" }, readyControl: { alignItems: "center", gap: 3 }, readyLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", writingDirection: "rtl" }, darkReadyLabel: { color: "#E9DEDF", fontSize: 10, fontWeight: "800", writingDirection: "rtl" }, actions: { flexDirection: "row-reverse", gap: 8, marginTop: 1 }, empty: { alignItems: "center", gap: 10, marginTop: 38, padding: 24 }, separator: { height: 10 }, overlay: { backgroundColor: "rgba(0,0,0,.4)", flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: colors.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 12, padding: 22, paddingBottom: 32 }, sheetHead: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }, close: { backgroundColor: colors.white, borderRadius: 12, padding: 8 }, newsInput: { borderColor: colors.line, borderRadius: 12, borderWidth: 1, color: colors.ink, minHeight: 100, padding: 11, textAlignVertical: "top", writingDirection: "rtl" }, notificationOverlay: { backgroundColor: "rgba(17, 37, 29, .38)", flex: 1, justifyContent: "flex-start", padding: 18, paddingTop: 92 }, notificationSheet: { backgroundColor: colors.paper, borderRadius: 20, gap: 8, maxHeight: "72%", padding: 15 }, notificationHeader: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between", marginBottom: 4 }, notificationTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", writingDirection: "rtl" }, notificationClose: { alignItems: "center", backgroundColor: colors.white, borderRadius: 12, height: 38, justifyContent: "center", width: 38 }, notificationItem: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, flexDirection: "row-reverse", gap: 10, minHeight: 70, padding: 10 }, notificationIcon: { alignItems: "center", backgroundColor: "#FFF0F0", borderRadius: 12, height: 38, justifyContent: "center", width: 38 }, notificationCopy: { flex: 1, gap: 3 }, notificationStudent: { color: colors.ink, fontSize: 14, fontWeight: "900", textAlign: "right", writingDirection: "rtl" }, notificationSummary: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "right", writingDirection: "rtl" }, pressed: { opacity: .65 }, noNotifications: { alignItems: "center", gap: 10, paddingVertical: 32 },
+  page: { backgroundColor: colors.paper },
+  gate: { alignItems: "center", backgroundColor: colors.paper, gap: 16, justifyContent: "center", padding: 24 },
+  switchLink: { alignItems: "center", flexDirection: "row", gap: 5, padding: 6 },
+  switchLinkText: { color: colors.gold, fontSize: 13, fontWeight: "900", textDecorationLine: "underline", writingDirection: "rtl" },
+  list: { flexGrow: 1, padding: 16 },
+  header: { gap: 14, marginBottom: 18 },
+  headerRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  headerCopy: { flex: 1, paddingLeft: 0, paddingRight: 0 },
+  headerActions: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-start" },
+  icon: { backgroundColor: colors.white, borderRadius: 13, padding: 11, position: "relative" },
+  logoutButton: { alignItems: "center", backgroundColor: "#FFF0F0", borderColor: colors.rose, borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingVertical: 10 },
+  logoutText: { color: colors.rose, fontSize: 11, fontWeight: "900", writingDirection: "rtl" },
+  newsButton: { alignItems: "center", backgroundColor: colors.paleGold, borderColor: colors.gold, borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 4, paddingHorizontal: 9, paddingVertical: 10 },
+  newsButtonText: { color: "#80601D", fontSize: 11, fontWeight: "900", writingDirection: "rtl" },
+  refreshButton: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.green, borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 4, paddingHorizontal: 9, paddingVertical: 10 },
+  refreshButtonText: { color: colors.green, fontSize: 11, fontWeight: "900", writingDirection: "rtl" },
+  notificationBadge: { alignItems: "center", backgroundColor: colors.rose, borderColor: colors.white, borderRadius: 11, borderWidth: 2, height: 22, justifyContent: "center", position: "absolute", left: -5, top: -5, minWidth: 22 },
+  notificationBadgeText: { color: colors.white, fontSize: 10, fontWeight: "900" },
+  syncCard: { alignItems: "center", backgroundColor: colors.paleGreen, flexDirection: "row", gap: 9, padding: 12 },
+  syncCardOffline: { backgroundColor: "#FFF1F0" },
+  syncCopy: { flex: 1 },
+  syncTitle: { color: colors.ink, fontSize: 13, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
+  syncText: { color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: "right", writingDirection: "rtl" },
+  syncAction: { backgroundColor: colors.green, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 },
+  syncActionText: { color: colors.white, fontSize: 11, fontWeight: "800" },
+  searchWrap: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, flexDirection: "row", minHeight: 52, paddingHorizontal: 13 },
+  searchInput: { color: colors.ink, flex: 1, fontSize: 15, paddingHorizontal: 8, textAlign: "right", writingDirection: "rtl" },
+  clearSearch: { alignItems: "center", backgroundColor: colors.paleGreen, borderRadius: 14, height: 28, justifyContent: "center", width: 28 },
+  chips: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  chip: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.green, borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
+  chipActive: { alignItems: "center", backgroundColor: colors.green, borderRadius: 18, flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
+  chipText: { color: colors.green, fontSize: 12, fontWeight: "800", writingDirection: "rtl" },
+  chipTextActive: { color: colors.white, fontSize: 12, fontWeight: "800", writingDirection: "rtl" },
+  resultsText: { color: colors.muted, fontSize: 12, writingDirection: "rtl" },
+  sectionRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 2, marginTop: 4, paddingHorizontal: 4 },
+  sectionTitle: { color: colors.green, fontSize: 15, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
+  sectionCount: { alignItems: "center", backgroundColor: colors.paleGreen, borderRadius: 12, color: colors.green, fontSize: 11, fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 3 },
+  card: { gap: 8, padding: 15 },
+  cardPartialAbsent: { backgroundColor: "#FFF0F0", borderRightColor: colors.rose, borderRightWidth: 5 },
+  cardFullAbsent: { backgroundColor: "#3A2E31", borderColor: "#3A2E31", borderRightColor: "#1F1719", borderRightWidth: 5 },
+  cardTop: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" },
+  studentInfo: { flex: 1, gap: 4 },
+  titleRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  name: { color: colors.ink, fontSize: 18, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
+  darkText: { color: colors.white },
+  darkSubtitle: { color: "#E9DEDF" },
+  readyBadge: { alignItems: "center", backgroundColor: colors.green, borderRadius: 11, flexDirection: "row", gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
+  readyBadgeText: { color: colors.white, fontSize: 10, fontWeight: "900", writingDirection: "rtl" },
+  readyControl: { alignItems: "center", gap: 3 },
+  readyLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", writingDirection: "rtl" },
+  darkReadyLabel: { color: "#E9DEDF", fontSize: 10, fontWeight: "800", writingDirection: "rtl" },
+  actions: { flexDirection: "row", gap: 8, marginTop: 1 },
+  empty: { alignItems: "center", gap: 10, marginTop: 38, padding: 24 },
+  separator: { height: 10 },
+  overlay: { backgroundColor: "rgba(0,0,0,.4)", flex: 1, justifyContent: "flex-end" },
+  sheet: { backgroundColor: colors.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 12, padding: 22, paddingBottom: 32 },
+  sheetHead: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  close: { backgroundColor: colors.white, borderRadius: 12, padding: 8 },
+  newsInput: { borderColor: colors.line, borderRadius: 12, borderWidth: 1, color: colors.ink, minHeight: 100, padding: 11, textAlignVertical: "top", writingDirection: "rtl" },
+  notificationOverlay: { backgroundColor: "rgba(17, 37, 29, .38)", flex: 1, justifyContent: "flex-start", padding: 18, paddingTop: 92 },
+  notificationSheet: { backgroundColor: colors.paper, borderRadius: 20, gap: 8, maxHeight: "72%", padding: 15 },
+  notificationHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  notificationTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", writingDirection: "rtl" },
+  notificationClose: { alignItems: "center", backgroundColor: colors.white, borderRadius: 12, height: 38, justifyContent: "center", width: 38 },
+  notificationItem: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 10, minHeight: 70, padding: 10 },
+  notificationIcon: { alignItems: "center", backgroundColor: "#FFF0F0", borderRadius: 12, height: 38, justifyContent: "center", width: 38 },
+  notificationCopy: { flex: 1, gap: 3 },
+  notificationStudent: { color: colors.ink, fontSize: 14, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
+  notificationSummary: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "right", writingDirection: "rtl" },
+  pressed: { opacity: .65 },
+  noNotifications: { alignItems: "center", gap: 10, paddingVertical: 32 },
 });

@@ -229,9 +229,9 @@ const styles = StyleSheet.create({
   gate: { alignItems: "center", backgroundColor: colors.paper, gap: 14, justifyContent: "center", padding: 24 },
   center: { textAlign: "center" },
   actionRow: { marginTop: 4, alignItems: "center" },
-  modeToggleBtn: { flexDirection: "row-reverse", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12 },
+  modeToggleBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12 },
   modeToggleText: { color: colors.green, fontSize: 13, fontWeight: "800", writingDirection: "rtl" },
-  switchLink: { alignItems: "center", flexDirection: "row-reverse", gap: 5, padding: 6, marginTop: 8 },
+  switchLink: { alignItems: "center", flexDirection: "row", gap: 5, padding: 6, marginTop: 8 },
   switchText: { color: colors.gold, fontSize: 13, fontWeight: "900", textDecorationLine: "underline", writingDirection: "rtl" },
   error: { color: colors.rose, fontSize: 13, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
 });
