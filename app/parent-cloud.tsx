@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 
 import { AppIcon, colors, FormField, PrimaryButton, SecondaryButton, Surface, uiStyles } from "@/components/app-ui";
 import { BoardCanvas } from "@/components/board-canvas";
+import { NewsTicker } from "@/components/news-ticker";
 import { ScreenContainer } from "@/components/screen-container";
 import { clearCloudParentSession, loadCloudParentSession, saveCloudParentSession } from "@/lib/cloud-parent-session";
 import { type BoardElement } from "@/lib/app-types";
@@ -12,25 +13,6 @@ import { prepareNotifications } from "@/lib/notifications";
 import { supabaseSchool, type SchoolAttendance, type SchoolBoard, type SchoolMessage, type SchoolNews } from "@/lib/supabase-school-api";
 
 type Snapshot = { student: { id: string; name: string; age: number }; boards: SchoolBoard[]; attendance: SchoolAttendance[]; messages: SchoolMessage[]; news: SchoolNews[] };
-
-function NewsTicker({ news, visible }: { news: SchoolNews[]; visible: boolean }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const [trackWidth, setTrackWidth] = useState(0);
-  const [textWidth, setTextWidth] = useState(0);
-  const content = useMemo(() => {
-    const base = news.find((item) => item.content.trim())?.content.trim();
-    return base ? Array.from({ length: 4 }, () => base).join("                         •                         ") : "";
-  }, [news]);
-  useEffect(() => {
-    if (!content || !trackWidth || !textWidth) return;
-    translateX.setValue(-textWidth);
-    const animation = Animated.loop(Animated.timing(translateX, { toValue: trackWidth, duration: Math.max(18_000, (textWidth + trackWidth) * 18), useNativeDriver: true }));
-    animation.start();
-    return () => animation.stop();
-  }, [content, textWidth, trackWidth, translateX]);
-  if (!content || !visible) return null;
-  return <View style={styles.ticker}><View style={styles.tickerLabel}><AppIcon name="campaign" color={colors.white} size={18} /><Text style={styles.tickerLabelText}>أخبار الحلقة</Text></View><View onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)} style={styles.tickerTrack}><Animated.Text numberOfLines={1} onLayout={(event) => setTextWidth(event.nativeEvent.layout.width)} style={[styles.tickerText, { transform: [{ translateX }] }]}>{content}</Animated.Text></View></View>;
-}
 
 export default function CloudParentScreen() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -178,11 +160,6 @@ const styles = StyleSheet.create({
   error: { color: colors.rose, fontSize: 13, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
   scroll: { flex: 1 },
   content: { gap: 16, paddingHorizontal: 8, paddingTop: 12, paddingBottom: 20 },
-  ticker: { alignItems: "center", backgroundColor: colors.green, flexDirection: "row", height: 48 },
-  tickerLabel: { alignItems: "center", backgroundColor: "#11513E", flexDirection: "row", gap: 5, height: "100%", paddingHorizontal: 12 },
-  tickerLabelText: { color: colors.white, fontSize: 11, fontWeight: "900", writingDirection: "rtl" },
-  tickerTrack: { flex: 1, overflow: "hidden" },
-  tickerText: { color: colors.white, fontSize: 13, fontWeight: "800", right: 0, lineHeight: 48, paddingHorizontal: 12, position: "absolute", textAlign: "right", top: 0, writingDirection: "rtl" },
   tickerToggle: { alignItems: "center", backgroundColor: colors.paleGold, borderColor: colors.gold, borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 4, paddingHorizontal: 8, paddingVertical: 10 },
   tickerToggleDisabled: { opacity: .5 },
   tickerToggleText: { color: "#80601D", fontSize: 10, fontWeight: "900", writingDirection: "rtl" },

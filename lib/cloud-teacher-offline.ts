@@ -1,11 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Network from "expo-network";
 
-import { queueTeacherOfflineMutation, type TeacherOfflineMutation, type TeacherOfflineMutationInput } from "@/lib/cloud-teacher-offline-queue";
-import { supabaseSchool, type SchoolAttendance, type SchoolBoard, type SchoolMessage, type SchoolStudent } from "@/lib/supabase-school-api";
+import { queueTeacherOfflineMutation, TeacherOfflineMutation, TeacherOfflineMutationInput } from "@/lib/cloud-teacher-offline-queue";
+import { supabaseSchool, SchoolAttendance, SchoolBoard, SchoolMessage, SchoolNews, SchoolStudent } from "@/lib/supabase-school-api";
 
-export { queueTeacherOfflineMutation } from "@/lib/cloud-teacher-offline-queue";
-export type { TeacherOfflineMutation, TeacherOfflineMutationInput } from "@/lib/cloud-teacher-offline-queue";
+export { queueTeacherOfflineMutation, TeacherOfflineMutation, TeacherOfflineMutationInput } from "@/lib/cloud-teacher-offline-queue";
 
 const OFFLINE_CACHE_KEY = "quran-school-supabase-teacher-offline-v1";
 
@@ -19,12 +18,13 @@ export type CachedTeacherDetail = {
 export type TeacherOfflineCache = {
   students: SchoolStudent[];
   attendance: SchoolAttendance[];
+  news: SchoolNews[];
   details: Record<string, CachedTeacherDetail>;
   queue: TeacherOfflineMutation[];
   updatedAt: string | null;
 };
 
-const emptyCache = (): TeacherOfflineCache => ({ students: [], attendance: [], details: {}, queue: [], updatedAt: null });
+const emptyCache = (): TeacherOfflineCache => ({ students: [], attendance: [], news: [], details: {}, queue: [], updatedAt: null });
 
 let memoryCache: TeacherOfflineCache | null = null;
 let writeChain: Promise<void> = Promise.resolve();
@@ -52,6 +52,7 @@ async function readCache(): Promise<TeacherOfflineCache> {
     memoryCache = {
       students: Array.isArray(parsed.students) ? parsed.students : [],
       attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
+      news: Array.isArray(parsed.news) ? parsed.news : [],
       details: parsed.details && typeof parsed.details === "object" ? parsed.details : {},
       queue: Array.isArray(parsed.queue) ? parsed.queue : [],
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
@@ -93,7 +94,7 @@ export async function isTeacherInternetAvailable(): Promise<boolean> {
   return state.isInternetReachable !== false;
 }
 
-export async function cacheTeacherSnapshot(snapshot: { students: SchoolStudent[]; boards?: SchoolBoard[]; attendance: SchoolAttendance[]; messages?: SchoolMessage[] }): Promise<void> {
+export async function cacheTeacherSnapshot(snapshot: { students: SchoolStudent[]; boards?: SchoolBoard[]; attendance: SchoolAttendance[]; messages?: SchoolMessage[]; news?: SchoolNews[] }): Promise<void> {
   await updateCache((current) => {
     const boards = snapshot.boards;
     const messages = snapshot.messages;
@@ -105,8 +106,16 @@ export async function cacheTeacherSnapshot(snapshot: { students: SchoolStudent[]
           messages: messages.filter((message) => message.student_id === student.id),
         }]))
       : current.details;
-    return { ...current, students: snapshot.students, attendance: snapshot.attendance, details, updatedAt: new Date().toISOString() };
+    return { ...current, students: snapshot.students, attendance: snapshot.attendance, news: snapshot.news ?? current.news ?? [], details, updatedAt: new Date().toISOString() };
   });
+}
+
+export async function cacheTeacherNews(newsItem: SchoolNews): Promise<void> {
+  await updateCache((current) => ({
+    ...current,
+    news: [newsItem],
+    updatedAt: new Date().toISOString(),
+  }));
 }
 
 export async function cacheTeacherDetail(detail: CachedTeacherDetail): Promise<void> {

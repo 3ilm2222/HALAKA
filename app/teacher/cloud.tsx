@@ -4,9 +4,10 @@ import * as Network from "expo-network";
 import { router } from "expo-router";
 
 import { AppIcon, colors, FormField, PrimaryButton, SecondaryButton, Surface, uiStyles } from "@/components/app-ui";
+import { NewsTicker } from "@/components/news-ticker";
 import { ScreenContainer } from "@/components/screen-container";
 import { clearCloudTeacherSession, loadCloudTeacherSession } from "@/lib/cloud-teacher-session";
-import { cacheAttendanceRecord, cacheStudent, cacheTeacherMessage, cacheTeacherSnapshot, createOfflineId, enqueueTeacherMutation, flushTeacherOfflineQueue, isTeacherInternetAvailable, loadTeacherOfflineCache } from "@/lib/cloud-teacher-offline";
+import { cacheAttendanceRecord, cacheStudent, cacheTeacherMessage, cacheTeacherNews, cacheTeacherSnapshot, createOfflineId, enqueueTeacherMutation, flushTeacherOfflineQueue, isTeacherInternetAvailable, loadTeacherOfflineCache } from "@/lib/cloud-teacher-offline";
 import { localDateKey } from "@/lib/local-date";
 import { arrangeSessionStudents, attendanceTone, type AttendanceTone } from "@/lib/student-session-list";
 import { supabaseSchool, type SchoolAttendance, type SchoolMessage, type SchoolNews, type SchoolStudent } from "@/lib/supabase-school-api";
@@ -45,6 +46,7 @@ export default function CloudTeacherScreen() {
     setStudents(cache.students);
     setAttendance(cache.attendance);
     setMessages(Object.values(cache.details).flatMap((detail) => detail.messages));
+    setNews(cache.news ?? []);
     setPendingCount(cache.queue.length);
     return cache;
   }, []);
@@ -206,6 +208,7 @@ export default function CloudTeacherScreen() {
         ? await supabaseSchool.updateTeacherNews(token, editingNewsId, newsText.trim())
         : await supabaseSchool.createTeacherNews(token, newsText.trim());
       setNews([result.news]);
+      await cacheTeacherNews(result.news);
       setNewsVisible(false);
       setSyncStatus(editingNewsId ? "تم تعديل الخبر لجميع أولياء الأمور" : "تم نشر الخبر لجميع أولياء الأمور");
     } catch (error) {
@@ -291,6 +294,7 @@ export default function CloudTeacherScreen() {
     <Modal visible={formVisible} transparent animationType="slide" onRequestClose={() => setFormVisible(false)}><View style={styles.overlay}><View style={styles.sheet}><Text style={uiStyles.pageTitle}>إضافة طالب</Text><Text style={uiStyles.pageSubtitle}>سيُحفظ الطالب على الجهاز أولاً، ثم يُرفع تلقائياً عند عودة الاتصال.</Text><FormField label="الاسم" value={name} onChangeText={setName} /><FormField label="العمر" value={age} onChangeText={setAge} keyboardType="number-pad" /><FormField label="رمز ولي الأمر" value={parentPin} onChangeText={setParentPin} secureTextEntry /><PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ"} disabled={busy} onPress={addStudent} /><SecondaryButton label="إلغاء" onPress={() => setFormVisible(false)} /></View></View></Modal>
     <Modal visible={notificationsVisible} transparent animationType="fade" onRequestClose={() => setNotificationsVisible(false)}><View style={styles.notificationOverlay}><View style={styles.notificationSheet}><View style={styles.notificationHeader}><Text style={styles.notificationTitle}>تنبيهات أولياء الأمور</Text><Pressable accessibilityLabel="إغلاق التنبيهات" onPress={() => setNotificationsVisible(false)} style={styles.notificationClose}><AppIcon name="close" color={colors.muted} size={20} /></Pressable></View>{unreadNotifications.length ? unreadNotifications.map(({ message, student }) => <Pressable key={message.id} onPress={() => void openUnreadMessage(student.id)} style={({ pressed }) => [styles.notificationItem, pressed && styles.pressed]}><View style={styles.notificationIcon}><AppIcon name="mail" color={colors.rose} size={20} /></View><View style={styles.notificationCopy}><Text style={styles.notificationStudent}>{student.name}</Text><Text numberOfLines={2} style={styles.notificationSummary}>{message.content}</Text></View><AppIcon name="chevron-left" color={colors.muted} size={20} /></Pressable>) : <View style={styles.noNotifications}><AppIcon name="notifications-none" color={colors.muted} size={32} /><Text style={uiStyles.pageSubtitle}>لا توجد رسائل جديدة من أولياء الأمور.</Text></View>}</View></View></Modal>
     <Modal visible={newsVisible} transparent animationType="slide" onRequestClose={() => setNewsVisible(false)}><View style={styles.overlay}><View style={styles.sheet}><View style={styles.sheetHead}><Text style={uiStyles.pageTitle}>{editingNewsId ? "تعديل خبر الحلقة" : "خبر الحلقة"}</Text><Pressable accessibilityLabel="إغلاق نافذة الأخبار" onPress={() => setNewsVisible(false)} style={styles.close}><AppIcon name="close" /></Pressable></View><Text style={uiStyles.pageSubtitle}>يوجد خبر واحد فقط للحلقة. يبقى النص هنا ويمكنك تعديله في أي وقت، حتى لو كان طويلاً.</Text><TextInput value={newsText} onChangeText={setNewsText} maxLength={800} multiline textAlign="right" placeholder="اكتب خبر الحلقة هنا…" placeholderTextColor={colors.muted} style={styles.newsInput} /><PrimaryButton label={busy ? "جارٍ الحفظ…" : editingNewsId ? "حفظ التعديل" : "حفظ الخبر"} icon="campaign" disabled={busy || !newsText.trim()} onPress={() => void saveNews()} /></View></View></Modal>
+    <NewsTicker news={news} visible={true} isTeacher={true} onEditPress={openNewsComposer} />
   </ScreenContainer>;
 }
 
