@@ -107,6 +107,9 @@ const config: ExpoConfig = {
     supportsRTL: true,
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || "https://ihofyzhldvuwrhtidjfm.supabase.co",
     supabasePublishableKey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_Ul7dou1xwKZyoSj_qiqWBg_0dIRG211",
+    router: {
+      origin: process.env.APP_URL || "https://ais-dev-fdklvezuzjjezb2ytxwyw3-365228383875.europe-west3.run.app",
+    },
   },
   experiments: {
     typedRoutes: true,

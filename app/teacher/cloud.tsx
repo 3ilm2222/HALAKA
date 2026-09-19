@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, FlatList, Modal, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as Network from "expo-network";
 import { router } from "expo-router";
 
+import { AlphabetBar } from "@/components/alphabet-bar";
 import { AppIcon, colors, FormField, PrimaryButton, SecondaryButton, Surface, uiStyles } from "@/components/app-ui";
 import { NewsTicker } from "@/components/news-ticker";
 import { ScreenContainer } from "@/components/screen-container";
 import { clearCloudTeacherSession, loadCloudTeacherSession } from "@/lib/cloud-teacher-session";
 import { cacheAttendanceRecord, cacheStudent, cacheTeacherMessage, cacheTeacherNews, cacheTeacherSnapshot, createOfflineId, enqueueTeacherMutation, flushTeacherOfflineQueue, isTeacherInternetAvailable, loadTeacherOfflineCache } from "@/lib/cloud-teacher-offline";
 import { localDateKey } from "@/lib/local-date";
-import { arrangeSessionStudents, attendanceTone, type AttendanceTone } from "@/lib/student-session-list";
+import { arrangeSessionStudents, attendanceTone, getArabicLetter, type AttendanceTone } from "@/lib/student-session-list";
 import { supabaseSchool, type SchoolAttendance, type SchoolMessage, type SchoolNews, type SchoolStudent } from "@/lib/supabase-school-api";
 
 type StudentListItem =
@@ -40,6 +41,9 @@ export default function CloudTeacherScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [readyOnly, setReadyOnly] = useState(false);
   const [readyStudentIds, setReadyStudentIds] = useState<Set<string>>(() => new Set());
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+  const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList>(null);
 
   const hydrateLocal = useCallback(async () => {
     const cache = await loadTeacherOfflineCache();
@@ -169,6 +173,69 @@ export default function CloudTeacherScreen() {
     .map((message) => ({ message, student: students.find((student) => student.id === message.student_id) }))
     .filter((item): item is { message: SchoolMessage; student: SchoolStudent } => Boolean(item.student)), [messages, students]);
 
+  const countsByLetter = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of listItems) {
+      if (item.kind === "student") {
+        const letter = getArabicLetter(item.student.name);
+        if (letter) {
+          counts[letter] = (counts[letter] ?? 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [listItems]);
+
+  const handleSelectLetter = useCallback((letter: string) => {
+    setSelectedLetter(letter);
+
+    // Find first student matching this letter (prefer others, fallback to ready)
+    let targetIndex = listItems.findIndex(
+      (item) => item.kind === "student" && item.id.startsWith("student-") && getArabicLetter(item.student.name) === letter
+    );
+    if (targetIndex === -1) {
+      targetIndex = listItems.findIndex(
+        (item) => item.kind === "student" && getArabicLetter(item.student.name) === letter
+      );
+    }
+
+    if (targetIndex !== -1) {
+      const targetItem = listItems[targetIndex];
+      if (targetItem.kind === "student") {
+        setHighlightedStudentId(targetItem.student.id);
+
+        if (Platform.OS === "web" && typeof document !== "undefined") {
+          const domElement = document.getElementById(`student-item-${targetItem.student.id}`);
+          if (domElement) {
+            domElement.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+
+        try {
+          flatListRef.current?.scrollToIndex({
+            index: targetIndex,
+            animated: true,
+            viewPosition: 0.08,
+          });
+        } catch {
+          // Handled by onScrollToIndexFailed
+        }
+
+        setTimeout(() => {
+          setHighlightedStudentId((current) => (current === targetItem.student.id ? null : current));
+        }, 2200);
+      }
+    }
+  }, [listItems]);
+
+  const handleResetToTop = useCallback(() => {
+    setSelectedLetter(null);
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
   const toggleReady = (studentId: string) => setReadyStudentIds((current) => {
     const next = new Set(current);
     if (next.has(studentId)) next.delete(studentId); else next.add(studentId);
@@ -228,11 +295,20 @@ export default function CloudTeacherScreen() {
 
   const renderStudent = (student: SchoolStudent, tone: AttendanceTone) => {
     const ready = readyStudentIds.has(student.id);
-    const cardStyle = tone === "fullAbsent" ? { ...styles.card, ...styles.cardFullAbsent } : tone === "partialAbsent" ? { ...styles.card, ...styles.cardPartialAbsent } : styles.card;
+    const isHighlighted = highlightedStudentId === student.id;
+    const cardStyle = [
+      styles.card,
+      tone === "fullAbsent" ? styles.cardFullAbsent : tone === "partialAbsent" ? styles.cardPartialAbsent : null,
+      isHighlighted ? styles.cardHighlighted : null,
+    ];
     const titleStyle = tone === "fullAbsent" ? { ...styles.name, ...styles.darkText } : styles.name;
     const subtitleStyle = tone === "fullAbsent" ? { ...uiStyles.pageSubtitle, ...styles.darkSubtitle } : uiStyles.pageSubtitle;
     return (
-      <Surface style={cardStyle}>
+      <Surface
+        id={`student-item-${student.id}`}
+        nativeID={`student-item-${student.id}`}
+        style={cardStyle}
+      >
         <View style={styles.cardTop}>
           <Pressable style={styles.studentInfo} onPress={() => router.push({ pathname: "/teacher/cloud-student", params: { id: student.id } })}>
             <View style={styles.titleRow}>
@@ -276,8 +352,15 @@ export default function CloudTeacherScreen() {
 
   return <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.page}>
     <FlatList
+      ref={flatListRef}
       data={listItems}
       keyExtractor={(item) => item.id}
+      onScrollToIndexFailed={(info) => {
+        flatListRef.current?.scrollToOffset({
+          offset: Math.max(0, info.averageItemLength * info.index),
+          animated: true,
+        });
+      }}
       refreshControl={<RefreshControl refreshing={busy || syncing} onRefresh={() => void refresh()} tintColor={colors.green} />}
       contentContainerStyle={styles.list}
       ListHeaderComponent={<View style={styles.header}>
@@ -285,6 +368,12 @@ export default function CloudTeacherScreen() {
         <Surface style={online ? styles.syncCard : { ...styles.syncCard, ...styles.syncCardOffline }}><AppIcon name={online ? "cloud-done" : "cloud-off"} color={online ? colors.green : colors.rose} size={18} /><View style={styles.syncCopy}><Text style={styles.syncTitle}>{online ? "متصل" : "دون اتصال"}</Text><Text style={styles.syncText}>{syncStatus}</Text></View>{online && pendingCount > 0 ? <Pressable onPress={() => void refresh()} style={styles.syncAction}><Text style={styles.syncActionText}>مزامنة</Text></Pressable> : null}</Surface>
         <View style={styles.searchWrap}><AppIcon name="search" color={colors.muted} size={21} /><TextInput value={searchQuery} onChangeText={setSearchQuery} placeholder="ابحث بالاسم الأول أو العائلة…" placeholderTextColor={colors.muted} textAlign="right" returnKeyType="search" style={styles.searchInput} />{searchQuery ? <Pressable accessibilityLabel="مسح البحث" onPress={() => setSearchQuery("")} style={styles.clearSearch}><AppIcon name="close" color={colors.muted} size={18} /></Pressable> : null}</View>
         <View style={styles.chips}><Pressable onPress={() => setReadyOnly((current) => !current)} style={readyOnly ? styles.chipActive : styles.chip}><AppIcon name="record-voice-over" color={readyOnly ? colors.white : colors.green} size={17} /><Text style={readyOnly ? styles.chipTextActive : styles.chipText}>المستعدون فقط{readyStudentIds.size ? ` (${readyStudentIds.size})` : ""}</Text></Pressable>{searchQuery ? <Text style={styles.resultsText}>{listItems.filter((item) => item.kind === "student").length} نتيجة</Text> : null}</View>
+        <AlphabetBar
+          countsByLetter={countsByLetter}
+          selectedLetter={selectedLetter}
+          onSelectLetter={handleSelectLetter}
+          onResetToTop={handleResetToTop}
+        />
         <PrimaryButton label="إضافة طالب" icon="person-add" onPress={() => setFormVisible(true)} />
       </View>}
       renderItem={({ item }) => item.kind === "section" ? <View style={styles.sectionRow}><Text style={styles.sectionTitle}>{item.title}</Text><Text style={styles.sectionCount}>{item.count}</Text></View> : renderStudent(item.student, item.tone)}
@@ -337,6 +426,11 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.green, fontSize: 15, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
   sectionCount: { alignItems: "center", backgroundColor: colors.paleGreen, borderRadius: 12, color: colors.green, fontSize: 11, fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 3 },
   card: { gap: 8, padding: 15 },
+  cardHighlighted: {
+    backgroundColor: "#FFFDF2",
+    borderColor: colors.gold,
+    borderWidth: 2,
+  },
   cardPartialAbsent: { backgroundColor: "#FFF0F0", borderRightColor: colors.rose, borderRightWidth: 5 },
   cardFullAbsent: { backgroundColor: "#3A2E31", borderColor: "#3A2E31", borderRightColor: "#1F1719", borderRightWidth: 5 },
   cardTop: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" },

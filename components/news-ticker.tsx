@@ -363,7 +363,6 @@ const styles = StyleSheet.create({
   animatedTextWrapper: {
     alignItems: "center",
     bottom: 0,
-    direction: "rtl" as never,
     flexDirection: "row",
     justifyContent: "flex-end",
     left: 0,

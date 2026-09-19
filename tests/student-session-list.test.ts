@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { arrangeSessionStudents, attendanceTone, matchesStudentName } from "../lib/student-session-list";
+import {
+  ARABIC_ALPHABET,
+  arrangeSessionStudents,
+  attendanceTone,
+  getArabicLetter,
+  matchesStudentName,
+} from "../lib/student-session-list";
 
 const students = [
   { id: "ahmad", teacher_id: "teacher", name: "أحمد محمد", normalized_name: "أحمد محمد", age: 10, created_at: "2026-08-27", updated_at: "2026-08-27" },
@@ -27,6 +33,16 @@ describe("بحث وترتيب قائمة الطلاب", () => {
     expect(result.others.map((student) => student.id)).toEqual(["maryam", "zayd"]);
   });
 
+  it("يرتب قائمة المستعدين حسب أسبقية ووقت اختيار المعلم أولاً بأول وليس أبجدياً", () => {
+    // Teacher toggled Zayd first, then Ahmad second
+    const readySet = new Set(["zayd", "ahmad"]);
+    const result = arrangeSessionStudents(students, readySet, attendance, "", false);
+
+    // Order MUST be [zayd, ahmad] despite "ahmad" being alphabetically first
+    expect(result.ready.map((student) => student.id)).toEqual(["zayd", "ahmad"]);
+    expect(result.others.map((student) => student.id)).toEqual(["maryam"]);
+  });
+
   it("يعرض فلتر المستعدين القسم الخاص بهم فقط", () => {
     const result = arrangeSessionStudents(students, new Set(["maryam"]), attendance, "", true);
 
@@ -38,5 +54,16 @@ describe("بحث وترتيب قائمة الطلاب", () => {
     expect(attendanceTone(attendance.get("zayd"))).toBe("partialAbsent");
     expect(attendanceTone(attendance.get("ahmad"))).toBe("fullAbsent");
     expect(attendanceTone(undefined)).toBe("present");
+  });
+
+  it("يستخرج الحرف الأبجدي الأول للأسماء مع تطبيع الألف والهمزات", () => {
+    expect(ARABIC_ALPHABET.length).toBe(28);
+    expect(getArabicLetter("أحمد")).toBe("أ");
+    expect(getArabicLetter("إبراهيم")).toBe("أ");
+    expect(getArabicLetter("آدم")).toBe("أ");
+    expect(getArabicLetter("عمر")).toBe("ع");
+    expect(getArabicLetter("يوسف")).toBe("ي");
+    expect(getArabicLetter("هشام")).toBe("هـ");
+    expect(getArabicLetter("زيد")).toBe("ز");
   });
 });

@@ -14,6 +14,23 @@ function normalizedArabic(value: string): string {
     .toLocaleLowerCase("ar");
 }
 
+export const ARABIC_ALPHABET = [
+  "أ", "ب", "ت", "ث", "ج", "ح", "خ", "د", "ذ", "ر", "ز", "س", "ش", "ص", "ض", "ط", "ظ", "ع", "غ", "ف", "ق", "ك", "ل", "م", "ن", "هـ", "و", "ي",
+] as const;
+
+export function getArabicLetter(name: string): string {
+  if (!name) return "";
+  const cleaned = name
+    .trim()
+    .replace(/^[\u064B-\u065F\u0670\s]+/, "");
+  if (!cleaned) return "";
+  const first = cleaned[0];
+  if (/[أإآاء]/.test(first)) return "أ";
+  if (first === "ة" || first === "ه") return "هـ";
+  if (first === "ى") return "ي";
+  return first;
+}
+
 export function matchesStudentName(student: Pick<SchoolStudent, "name" | "normalized_name">, query: string): boolean {
   const needle = normalizedArabic(query);
   if (!needle) return true;
@@ -26,10 +43,26 @@ export function attendanceTone(record: Pick<SchoolAttendance, "morning_absent" |
   return "present";
 }
 
-export function arrangeSessionStudents(students: SchoolStudent[], readyStudentIds: Set<string>, attendanceByStudent: Map<string, SchoolAttendance>, query: string, readyOnly: boolean): { ready: SchoolStudent[]; others: SchoolStudent[] } {
+export function arrangeSessionStudents(
+  students: SchoolStudent[],
+  readyStudentIds: Set<string>,
+  attendanceByStudent: Map<string, SchoolAttendance>,
+  query: string,
+  readyOnly: boolean
+): { ready: SchoolStudent[]; others: SchoolStudent[] } {
   const collator = new Intl.Collator("ar", { sensitivity: "base" });
   const matching = students.filter((student) => matchesStudentName(student, query));
-  const ready = matching.filter((student) => readyStudentIds.has(student.id)).sort((a, b) => collator.compare(a.name, b.name));
+  const matchingMap = new Map(matching.map((student) => [student.id, student]));
+
+  // Preserve FIFO order: students appear in the exact order the teacher marked them as ready
+  const ready: SchoolStudent[] = [];
+  for (const id of readyStudentIds) {
+    const student = matchingMap.get(id);
+    if (student) {
+      ready.push(student);
+    }
+  }
+
   if (readyOnly) return { ready, others: [] };
   const rank: Record<AttendanceTone, number> = { present: 0, partialAbsent: 1, fullAbsent: 2 };
   const others = matching

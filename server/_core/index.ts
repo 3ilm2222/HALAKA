@@ -102,30 +102,36 @@ async function startServer() {
       return next();
     });
   } else {
+    const setLocalHeaders = (proxyReq: any) => {
+      proxyReq.setHeader("origin", `http://127.0.0.1:${metroPort}`);
+      proxyReq.setHeader("host", `127.0.0.1:${metroPort}`);
+    };
+
+    const handleProxyError = (_err: any, _req: any, res: any) => {
+      if (hasDist && !res.headersSent) {
+        const indexPath = path.join(distDir, "index.html");
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+          return;
+        }
+      }
+      if (!res.headersSent) {
+        res.status(503).send("Development server is starting, please refresh in a few seconds.");
+      }
+    };
+
     const metroProxy = createProxyMiddleware({
       target: `http://127.0.0.1:${metroPort}`,
       changeOrigin: true,
       ws: true,
-      onProxyReq: (proxyReq) => {
-        proxyReq.setHeader("origin", `http://127.0.0.1:${metroPort}`);
-        proxyReq.setHeader("host", `127.0.0.1:${metroPort}`);
+      on: {
+        proxyReq: setLocalHeaders,
+        proxyReqWs: setLocalHeaders,
+        error: handleProxyError,
       },
-      onProxyReqWs: (proxyReq) => {
-        proxyReq.setHeader("origin", `http://127.0.0.1:${metroPort}`);
-        proxyReq.setHeader("host", `127.0.0.1:${metroPort}`);
-      },
-      onError: (_err, _req, res) => {
-        if (hasDist && !res.headersSent) {
-          const indexPath = path.join(distDir, "index.html");
-          if (fs.existsSync(indexPath)) {
-            res.sendFile(indexPath);
-            return;
-          }
-        }
-        if (!res.headersSent) {
-          res.status(503).send("Development server is starting, please refresh in a few seconds.");
-        }
-      },
+      onProxyReq: setLocalHeaders,
+      onProxyReqWs: setLocalHeaders,
+      onError: handleProxyError,
     });
 
     app.use((req, res, next) => {
