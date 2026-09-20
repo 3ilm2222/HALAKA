@@ -1,7 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const key = "quran-school-supabase-parent-session";
+const snapshotCacheKey = "@quran-school-parent-cached-snapshot";
 
 function extractTokenString(token: unknown): string {
   if (typeof token === "string") {
@@ -81,8 +83,28 @@ export async function clearCloudParentSession(): Promise<void> {
     } else {
       await SecureStore.deleteItemAsync(key);
     }
+    await AsyncStorage.removeItem(snapshotCacheKey).catch(() => undefined);
   } catch (error) {
     console.warn("[CloudParentSession] Failed to clear session:", error);
+  }
+}
+
+export async function loadCachedParentSnapshot<T = unknown>(): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(snapshotCacheKey);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCachedParentSnapshot(snapshot: unknown): Promise<void> {
+  try {
+    if (!snapshot) return;
+    await AsyncStorage.setItem(snapshotCacheKey, JSON.stringify(snapshot));
+  } catch {
+    // Non-blocking caching
   }
 }
 

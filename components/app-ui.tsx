@@ -1,6 +1,16 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps, type ViewStyle } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type StyleProp,
+  type TextInputProps,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 
 export const colors = {
   green: "#004754",
@@ -65,11 +75,28 @@ export function SecondaryButton({
   );
 }
 
-export function FormField({ label, ...props }: TextInputProps & { label: string }) {
+export function FormField({
+  label,
+  large,
+  inputStyle,
+  containerStyle,
+  style,
+  ...props
+}: TextInputProps & {
+  label: string;
+  large?: boolean;
+  inputStyle?: StyleProp<TextStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
+}) {
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput placeholderTextColor="#93A19A" textAlign="right" style={styles.input} {...props} />
+    <View style={[styles.fieldWrap, large && styles.fieldWrapLarge, containerStyle]}>
+      <Text style={[styles.fieldLabel, large && styles.fieldLabelLarge]}>{label}</Text>
+      <TextInput
+        placeholderTextColor="#93A19A"
+        textAlign="right"
+        style={[styles.input, large && styles.inputLarge, inputStyle, style]}
+        {...props}
+      />
     </View>
   );
 }
@@ -86,14 +113,31 @@ export const uiStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  primaryButton: { alignItems: "center", backgroundColor: colors.green, borderRadius: 16, flexDirection: "row", gap: 8, justifyContent: "center", minHeight: 52, paddingHorizontal: 18 },
+  primaryButton: { alignItems: "center", backgroundColor: colors.green, borderRadius: 16, flexDirection: "row", gap: 8, justifyContent: "center", minHeight: 54, paddingHorizontal: 18 },
   primaryButtonText: { color: colors.white, fontSize: 16, fontWeight: "800", writingDirection: "rtl", includeFontPadding: false },
-  secondaryButton: { alignItems: "center", backgroundColor: colors.white, borderRadius: 14, borderWidth: 1.2, flexDirection: "row", gap: 7, justifyContent: "center", minHeight: 44, paddingHorizontal: 14 },
+  secondaryButton: { alignItems: "center", backgroundColor: colors.white, borderRadius: 14, borderWidth: 1.2, flexDirection: "row", gap: 7, justifyContent: "center", minHeight: 46, paddingHorizontal: 14 },
   secondaryButtonText: { fontSize: 14, fontWeight: "800", writingDirection: "rtl", includeFontPadding: false },
   buttonPressed: { opacity: 0.76, transform: [{ scale: 0.98 }] },
   disabled: { opacity: 0.5 },
-  fieldWrap: { gap: 7 },
+  fieldWrap: { gap: 7, width: "100%" },
+  fieldWrapLarge: { gap: 9 },
   fieldLabel: { color: colors.ink, fontSize: 14, fontWeight: "700", textAlign: "right", writingDirection: "rtl", includeFontPadding: false },
+  fieldLabelLarge: { color: colors.ink, fontSize: 16, fontWeight: "800" },
   input: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 14, borderWidth: 1, color: colors.ink, fontSize: 16, minHeight: 52, paddingHorizontal: 14, textAlign: "right", writingDirection: "rtl" },
+  inputLarge: {
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    color: colors.ink,
+    fontSize: 18,
+    minHeight: 60,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    shadowColor: "#19372B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+  },
   surface: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 20, borderWidth: 1, padding: 16, shadowColor: "#19372B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
 });

@@ -64,43 +64,73 @@ function getConfig() {
 
 export async function schoolApi<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const config = getConfig();
-  const isWeb = typeof window !== "undefined";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15_000);
 
-  let response: Response | null = null;
-  let lastError: Error | null = null;
+  const payloadString = JSON.stringify({ action, ...payload });
 
-  // On web, prefer same-origin server proxy to avoid CORS and browser restrictions
-  if (isWeb) {
-    try {
-      response = await fetch("/api/school-api", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action, ...payload }),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-    }
+  // Candidate endpoints:
+  // 1. Direct Supabase Edge Function (works in Web, Android APK, iOS, and has full CORS enabled)
+  // 2. Local/proxy server /api/school-api (fallback)
+  const endpoints: Array<{ url: string; headers: Record<string, string> }> = [];
+
+  if (config.projectUrl && config.publishableKey) {
+    endpoints.push({
+      url: `${config.projectUrl}/functions/v1/school-api`,
+      headers: {
+        Authorization: `Bearer ${config.publishableKey}`,
+        apikey: config.publishableKey,
+        "Content-Type": "application/json",
+      },
+    });
   }
 
-  // Fallback to direct Supabase edge function if not web or if server proxy failed
-  if (!response && config.projectUrl && config.publishableKey) {
+  if (typeof window !== "undefined") {
+    endpoints.push({
+      url: "/api/school-api",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }
+
+  let lastError: Error | null = null;
+
+  for (const ep of endpoints) {
     try {
-      response = await fetch(`${config.projectUrl}/functions/v1/school-api`, {
+      const response = await fetch(ep.url, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.publishableKey}`,
-          apikey: config.publishableKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action, ...payload }),
+        headers: ep.headers,
+        body: payloadString,
         signal: controller.signal,
       });
+
+      // Verify that response is JSON and not an HTML error/fallback page (such as 404 HTML)
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("json")) {
+        continue;
+      }
+
+      const data = (await response.json().catch(() => null)) as ({ error?: string } & T) | null;
+      if (!data || typeof data !== "object") {
+        continue;
+      }
+
+      if (!response.ok) {
+        // Business logic error from the API (e.g. 401 Unauthorized with error message)
+        const error = new Error(data.error || `خطأ في الاتصال (${response.status})`) as SchoolApiError;
+        error.status = response.status;
+        clearTimeout(timeoutId);
+        throw error;
+      }
+
+      clearTimeout(timeoutId);
+      return data;
     } catch (err) {
+      if (err instanceof Error && (err as SchoolApiError).status) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
       if (err instanceof Error && err.name === "AbortError") {
         clearTimeout(timeoutId);
         throw new Error("انتهت مهلة الاتصال بالسحابة. تحقق من الإنترنت وحاول مجدداً.");
@@ -111,20 +141,10 @@ export async function schoolApi<T>(action: string, payload: Record<string, unkno
 
   clearTimeout(timeoutId);
 
-  if (!response) {
-    if (lastError && lastError.message.includes("Failed to fetch")) {
-      throw new Error("تعذر الاتصال بالخادم. تأكد من اتصال الإنترنت ثم أعد المحاولة.");
-    }
-    throw lastError ?? new Error("تعذر الاتصال بخدمة المدرسة السحابية.");
+  if (lastError && (lastError.message.includes("Failed to fetch") || lastError.message.includes("NetworkError"))) {
+    throw new Error("تعذر الاتصال بالخادم. تأكد من اتصال الإنترنت ثم أعد المحاولة.");
   }
-
-  const payloadJson = (await response.json().catch(() => ({}))) as { error?: string } & T;
-  if (!response.ok) {
-    const error = new Error(payloadJson.error ?? "تعذر الاتصال بخدمة المدرسة السحابية.") as SchoolApiError;
-    error.status = response.status;
-    throw error;
-  }
-  return payloadJson;
+  throw lastError ?? new Error("تعذر الاتصال بخدمة المدرسة السحابية.");
 }
 
 export const supabaseSchool = {

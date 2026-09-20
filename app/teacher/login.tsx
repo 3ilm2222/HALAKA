@@ -57,42 +57,28 @@ export default function TeacherLoginScreen() {
           await saveOfflineTeacherAccess(pin, token);
           loggedIn = true;
         } catch (err) {
-          const isNetworkError =
-            err instanceof Error &&
-            (err.message.includes("تعذر الاتصال") ||
-              err.message.includes("مهلة") ||
-              err.message.includes("Failed to fetch") ||
-              err.message.includes("Network"));
-          if (isNetworkError) {
-            const cachedToken = await unlockOfflineTeacherAccess(pin);
-            if (cachedToken) {
-              await saveCloudTeacherSession(cachedToken);
-              loggedIn = true;
-            } else {
-              throw err;
-            }
+          // Check if this PIN matches offline access on this device
+          const cachedToken = await unlockOfflineTeacherAccess(pin);
+          if (cachedToken) {
+            await saveCloudTeacherSession(cachedToken);
+            loggedIn = true;
           } else {
-            // Check if teacher is not configured on cloud yet
-            const status = (err as { status?: number }).status;
-            const message = err instanceof Error ? err.message : "";
-            if (status === 401 && (message.includes("غير صحيح") || message.includes("لم يتم"))) {
-              const cachedToken = await unlockOfflineTeacherAccess(pin);
-              if (cachedToken) {
-                await saveCloudTeacherSession(cachedToken);
-                loggedIn = true;
-              } else {
-                throw err;
-              }
-            } else {
-              throw err;
+            const isAuthError =
+              err instanceof Error &&
+              (err.message.includes("غير صحيح") || (err as { status?: number }).status === 401);
+            if (isAuthError) {
+              throw new Error(
+                "رمز المعلم غير صحيح. إذا لم تقم بتعيين رمز بعد أو نسيت الرمز، اضغط على 'إنشاء أو تعيين رمز سري جديد' بالأسفل."
+              );
             }
+            throw err;
           }
         }
       } else {
         const cachedToken = await unlockOfflineTeacherAccess(pin);
         if (!cachedToken) {
           throw new Error(
-            "الرمز المدخل غير مطابق للرمز المحفوظ محلياً. إذا كانت هذه أول مرة، اضغط على 'إنشاء رمز سري للمعلم'."
+            "الرمز غير مطابق للرمز المحفوظ محلياً. إذا كانت هذه أول مرة أو نسيت الرمز، اضغط على 'إنشاء أو تعيين رمز سري جديد' بالأسفل."
           );
         }
         await saveCloudTeacherSession(cachedToken);
@@ -191,6 +177,8 @@ export default function TeacherLoginScreen() {
               <FormField
                 label="اسم المعلم / المحفّظ (اختياري)"
                 value={displayName}
+                large
+                placeholder="مثال: أ. عبدالله"
                 onChangeText={setDisplayName}
               />
             )}
@@ -198,6 +186,8 @@ export default function TeacherLoginScreen() {
             <FormField
               label={isCreatingPin ? "الرمز السري الجديد (4 أرقام على الأقل)" : "رمز المعلم"}
               value={pin}
+              large
+              placeholder="أدخل الرمز السري"
               onChangeText={(value) => {
                 setErrorMessage(null);
                 setPin(value);
@@ -210,6 +200,8 @@ export default function TeacherLoginScreen() {
               <FormField
                 label="تأكيد الرمز السري"
                 value={confirmPin}
+                large
+                placeholder="أعد إدخال الرمز السري للتأكيد"
                 onChangeText={(value) => {
                   setErrorMessage(null);
                   setConfirmPin(value);
@@ -266,19 +258,24 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
   gate: {
-    alignItems: "center",
+    alignItems: "stretch",
+    alignSelf: "center",
     backgroundColor: colors.paper,
-    gap: 14,
+    gap: 16,
     justifyContent: "center",
+    maxWidth: 440,
     padding: 24,
+    width: "100%",
   },
   center: { textAlign: "center" },
   actionRow: { marginTop: 4, alignItems: "center" },
   modeToggleBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12 },
   modeToggleText: { color: colors.green, fontSize: 13, fontWeight: "800", writingDirection: "rtl" },
-  switchLink: { alignItems: "center", flexDirection: "row", gap: 5, padding: 6, marginTop: 8 },
+  switchLink: { alignItems: "center", alignSelf: "center", flexDirection: "row", gap: 5, padding: 6, marginTop: 8 },
   switchText: { color: colors.gold, fontSize: 13, fontWeight: "900", textDecorationLine: "underline", writingDirection: "rtl" },
   error: { color: colors.rose, fontSize: 13, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
 });
