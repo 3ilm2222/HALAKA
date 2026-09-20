@@ -2,14 +2,16 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
-import { AppIcon, colors } from "@/components/app-ui";
+import { AppIcon, colors, PrimaryButton, SecondaryButton, Surface } from "@/components/app-ui";
 import { SchoolNews } from "@/lib/supabase-school-api";
 
 export type NewsTickerProps = {
@@ -44,28 +46,39 @@ export function NewsTicker({
   const [controlsWidth, setControlsWidth] = useState(135);
   const [textWidth, setTextWidth] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [detailVisible, setDetailVisible] = useState(false);
 
   const translateX = useRef(new Animated.Value(-9999)).current;
   const webAnimRef = useRef<View | null>(null);
 
-  const content = useMemo(() => {
-    const item = news.find(
+  // Collect all valid news items
+  const activeNewsItems = useMemo(() => {
+    return news.filter(
       (entry) =>
         entry &&
         typeof entry.content === "string" &&
         entry.content.trim().length > 0
     );
-    if (!item) return "";
-    return item.content.trim().replace(/\r?\n+/g, "  ·  ");
   }, [news]);
 
+  // Combined ticker string
+  const content = useMemo(() => {
+    if (!activeNewsItems.length) return "";
+    return activeNewsItems
+      .map((item) => item.content.trim().replace(/\r?\n+/g, "  ·  "))
+      .join("     ✦     ");
+  }, [activeNewsItems]);
+
   // Compute travel distance and duration
-  const estimatedTextWidth =
-    textWidth > 0 ? textWidth : Math.max(380, content.length * 9.5);
+  const estimatedTextWidth = useMemo(() => {
+    return Math.max(420, Math.ceil(content.length * 13.5));
+  }, [content]);
+
   const activeTrackWidth = trackWidth > 0 ? trackWidth : 360;
-  const totalDistance = estimatedTextWidth + activeTrackWidth;
+  const currentTextWidth = textWidth > 0 ? textWidth : estimatedTextWidth;
+  const totalDistance = currentTextWidth + activeTrackWidth;
   const durationSeconds = Math.max(
-    12,
+    10,
     Math.round(totalDistance / READING_SPEED_PX_PER_SEC)
   );
 
@@ -82,23 +95,23 @@ export function NewsTicker({
     }
   }, [content, safeId]);
 
-  // On Native: Recursive Animated.timing loop
+  // On Native (Android / iOS): Continuous Animated.timing loop
   useEffect(() => {
     if (Platform.OS === "web") return;
-    if (!content || !trackWidth) return;
+    if (!content || !trackWidth || isPaused) return;
 
     let isMounted = true;
-    const currentTextWidth = textWidth > 0 ? textWidth : estimatedTextWidth;
-    const startX = -currentTextWidth;
+    const measuredWidth = textWidth > 0 ? textWidth : estimatedTextWidth;
+    const startX = -measuredWidth;
     const endX = trackWidth;
-    const distance = currentTextWidth + trackWidth;
+    const distance = measuredWidth + trackWidth;
     const durationMs = Math.max(
-      12000,
+      10000,
       Math.round((distance / READING_SPEED_PX_PER_SEC) * 1000)
     );
 
     const runNativeLoop = () => {
-      if (!isMounted) return;
+      if (!isMounted || isPaused) return;
       translateX.setValue(startX);
       Animated.timing(translateX, {
         toValue: endX,
@@ -106,7 +119,7 @@ export function NewsTicker({
         easing: Easing.linear,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (isMounted) {
+        if (isMounted && finished && !isPaused) {
           runNativeLoop();
         }
       });
@@ -118,20 +131,20 @@ export function NewsTicker({
       isMounted = false;
       translateX.stopAnimation();
     };
-  }, [content, estimatedTextWidth, textWidth, trackWidth, translateX]);
+  }, [content, estimatedTextWidth, isPaused, textWidth, trackWidth, translateX]);
 
-  // On Web: Attach Web Animations API to ensure 100% continuous movement
-  // Even if CSS keyframes fail or are overridden by browser settings
+  // On Web: Web Animations API
   useEffect(() => {
     if (Platform.OS !== "web" || !content) return;
 
-    const node = (webAnimRef.current as unknown as HTMLElement | null) ||
-      (typeof document !== "undefined" ? document.getElementById(`${safeId}_wrapper`) : null);
+    const node =
+      (webAnimRef.current as unknown as HTMLElement | null) ||
+      (typeof document !== "undefined"
+        ? document.getElementById(`${safeId}_wrapper`)
+        : null);
 
     if (!node || typeof node.animate !== "function") return;
 
-    // Movement: startX = -100% of wrapper width (first word emerges at x = 0)
-    // endX = activeTrackWidth (until entire sentence exits on the right)
     const animation = node.animate(
       [
         { transform: "translateX(-100%)" },
@@ -193,107 +206,226 @@ export function NewsTicker({
   }
 
   return (
-    <View id={safeId} style={styles.ticker}>
-      {/* Declarative CSS Keyframes backup for web rendering */}
-      {Platform.OS === "web" ? (
-        <style>{`
-          @keyframes ${safeId}_marquee {
-            0% {
-              transform: translateX(-100%);
-            }
-            100% {
-              transform: translateX(${activeTrackWidth}px);
-            }
-          }
-          #${safeId}_wrapper:hover {
-            animation-play-state: paused !important;
-          }
-        `}</style>
-      ) : null}
-
-      {/* 1. Scrolling track occupying the space from left up to the controls on the right */}
-      <Pressable
-        id={`${safeId}_track`}
-        accessibilityRole="button"
-        accessibilityLabel={
-          isPaused
-            ? "استئناف حركة شريط الأخبار"
-            : "إيقاف مؤقت لحركة شريط الأخبار للقراءة"
-        }
-        onPress={() => setIsPaused((prev) => !prev)}
-        onLayout={(event) => {
-          const measured = Math.ceil(event.nativeEvent.layout.width);
-          if (measured > 0 && Math.abs(measured - trackWidth) > 2) {
-            setTrackWidth(measured);
-          }
-        }}
-        style={[styles.tickerTrack, { right: controlsWidth + 10 }]}
-      >
-        <Animated.View
-          id={`${safeId}_wrapper`}
-          ref={webAnimRef}
-          style={[
-            styles.animatedTextWrapper,
-            Platform.OS === "web"
-              ? ({
-                  // Standard RNW inline animation style
-                  animationName: `${safeId}_marquee`,
-                  animationDuration: `${durationSeconds}s`,
-                  animationTimingFunction: "linear",
-                  animationIterationCount: "infinite",
-                  animationFillMode: "both",
-                  animationPlayState: isPaused ? "paused" : "running",
-                } as never)
-              : {
-                  width: textWidth > 0 ? textWidth : undefined,
-                  transform: [{ translateX }],
-                },
-          ]}
-        >
-          <Text
-            id={`${safeId}_text`}
-            onLayout={(event) => {
-              const measured = Math.ceil(event.nativeEvent.layout.width);
-              if (measured > 0 && Math.abs(measured - textWidth) > 2) {
-                setTextWidth(measured);
+    <>
+      <View id={safeId} style={styles.ticker}>
+        {/* Declarative CSS Keyframes backup for web rendering */}
+        {Platform.OS === "web" ? (
+          <style>{`
+            @keyframes ${safeId}_marquee {
+              0% {
+                transform: translateX(-100%);
               }
-            }}
-            style={styles.tickerText}
+              100% {
+                transform: translateX(${activeTrackWidth}px);
+              }
+            }
+            #${safeId}_wrapper:hover {
+              animation-play-state: paused !important;
+            }
+          `}</style>
+        ) : null}
+
+        {/* Hidden off-screen unconstrained measurement view for Android / iOS to measure true text width */}
+        {Platform.OS !== "web" ? (
+          <View
+            style={styles.offscreenMeasurement}
+            pointerEvents="none"
+            aria-hidden="true"
           >
-            {content}
-          </Text>
-        </Animated.View>
-      </Pressable>
+            <Text
+              numberOfLines={1}
+              onLayout={(event) => {
+                const measured = Math.ceil(event.nativeEvent.layout.width);
+                if (measured > 0 && Math.abs(measured - textWidth) > 3) {
+                  setTextWidth(measured);
+                }
+              }}
+              style={styles.measurementText}
+            >
+              {content}
+            </Text>
+          </View>
+        ) : null}
 
-      {/* 2. Title & Edit badges fixed permanently on the FAR RIGHT */}
-      <View
-        id={`${safeId}_controls`}
-        onLayout={(event) => {
-          const measured = Math.ceil(event.nativeEvent.layout.width);
-          if (measured > 0 && Math.abs(measured - controlsWidth) > 2) {
-            setControlsWidth(measured);
-          }
-        }}
-        style={styles.controlsRow}
-      >
-        <View style={styles.tickerLabel}>
-          <AppIcon name="campaign" color={colors.white} size={18} />
-          <Text style={styles.tickerLabelText}>أخبار الحلقة</Text>
-        </View>
+        {/* 1. Scrolling track occupying the space from left up to the controls on the right */}
+        <Pressable
+          id={`${safeId}_track`}
+          accessibilityRole="button"
+          accessibilityLabel="اضغط لعرض كامل الخبر وقراءته بوضوح"
+          onPress={() => setDetailVisible(true)}
+          onLayout={(event) => {
+            const measured = Math.ceil(event.nativeEvent.layout.width);
+            if (measured > 0 && Math.abs(measured - trackWidth) > 2) {
+              setTrackWidth(measured);
+            }
+          }}
+          style={[styles.tickerTrack, { right: controlsWidth + 6 }]}
+        >
+          <Animated.View
+            id={`${safeId}_wrapper`}
+            ref={webAnimRef}
+            style={[
+              styles.animatedTextWrapper,
+              Platform.OS === "web"
+                ? ({
+                    animationName: `${safeId}_marquee`,
+                    animationDuration: `${durationSeconds}s`,
+                    animationTimingFunction: "linear",
+                    animationIterationCount: "infinite",
+                    animationFillMode: "both",
+                    animationPlayState: isPaused ? "paused" : "running",
+                  } as never)
+                : {
+                    width: currentTextWidth,
+                    transform: [{ translateX }],
+                  },
+            ]}
+          >
+            <Text
+              id={`${safeId}_text`}
+              numberOfLines={1}
+              ellipsizeMode="clip"
+              onLayout={(event) => {
+                if (Platform.OS === "web") {
+                  const measured = Math.ceil(event.nativeEvent.layout.width);
+                  if (measured > 0 && Math.abs(measured - textWidth) > 2) {
+                    setTextWidth(measured);
+                  }
+                }
+              }}
+              style={[
+                styles.tickerText,
+                Platform.OS !== "web" && { width: currentTextWidth },
+              ]}
+            >
+              {content}
+            </Text>
+          </Animated.View>
+        </Pressable>
 
-        {isTeacher && onEditPress ? (
+        {/* 2. Title, Reader & Edit badges fixed permanently on the FAR RIGHT */}
+        <View
+          id={`${safeId}_controls`}
+          onLayout={(event) => {
+            const measured = Math.ceil(event.nativeEvent.layout.width);
+            if (measured > 0 && Math.abs(measured - controlsWidth) > 2) {
+              setControlsWidth(measured);
+            }
+          }}
+          style={styles.controlsRow}
+        >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="تعديل خبر الحلقة"
-            onPress={onEditPress}
-            style={({ pressed }) => [styles.editBadge, pressed && styles.pressed]}
+            accessibilityLabel="قراءة الخبر كاملاً"
+            onPress={() => setDetailVisible(true)}
+            style={({ pressed }) => [styles.tickerLabel, pressed && styles.pressed]}
           >
-            <AppIcon name="edit" color={colors.white} size={14} />
-            <Text style={styles.editBadgeText}>تعديل</Text>
+            <AppIcon name="campaign" color={colors.white} size={18} />
+            <Text style={styles.tickerLabelText}>أخبار الحلقة</Text>
+            <AppIcon name="open-in-full" color="rgba(255,255,255,0.7)" size={13} />
           </Pressable>
-        ) : null}
+
+          {isTeacher && onEditPress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="تعديل خبر الحلقة"
+              onPress={onEditPress}
+              style={({ pressed }) => [styles.editBadge, pressed && styles.pressed]}
+            >
+              <AppIcon name="edit" color={colors.white} size={14} />
+              <Text style={styles.editBadgeText}>تعديل</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
-    </View>
+
+      {/* Full News Reader Modal: Allows reading long news in full without waiting for scroll */}
+      <Modal
+        visible={detailVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Surface style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <View style={styles.modalIconWrap}>
+                  <AppIcon name="campaign" color={colors.gold} size={24} />
+                </View>
+                <View>
+                  <Text style={styles.modalTitle}>أخبار وتنبيهات الحلقة</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {activeNewsItems.length > 1
+                      ? `${activeNewsItems.length} أخبار متوفرة`
+                      : "خبر الحلقة الحالي"}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityLabel="إغلاق"
+                onPress={() => setDetailVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <AppIcon name="close" color={colors.muted} size={20} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {activeNewsItems.map((item, index) => (
+                <View key={item.id || index} style={styles.newsItemBox}>
+                  {activeNewsItems.length > 1 && (
+                    <View style={styles.newsItemHeader}>
+                      <Text style={styles.newsItemIndex}>خبر #{index + 1}</Text>
+                      {item.created_at && (
+                        <Text style={styles.newsItemDate}>
+                          {new Date(item.created_at).toLocaleDateString("ar-SA", {
+                            weekday: "short",
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                  <Text style={styles.modalBodyText} selectable>
+                    {item.content}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <SecondaryButton
+                label={isPaused ? "استئناف الحركة" : "إيقاف الحركة"}
+                icon={isPaused ? "play-arrow" : "pause"}
+                onPress={() => setIsPaused((prev) => !prev)}
+              />
+              {isTeacher && onEditPress ? (
+                <PrimaryButton
+                  label="تعديل الخبر"
+                  icon="edit"
+                  onPress={() => {
+                    setDetailVisible(false);
+                    onEditPress();
+                  }}
+                  style={styles.modalEditBtn}
+                />
+              ) : null}
+              <SecondaryButton
+                label="إغلاق"
+                onPress={() => setDetailVisible(false)}
+              />
+            </View>
+          </Surface>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -308,11 +440,27 @@ const styles = StyleSheet.create({
     width: "100%",
     zIndex: 50,
   },
+  offscreenMeasurement: {
+    flexDirection: "row",
+    left: -9999,
+    opacity: 0,
+    position: "absolute",
+    top: -9999,
+  },
+  measurementText: {
+    color: colors.white,
+    fontSize: 13.5,
+    fontWeight: "800",
+    includeFontPadding: false,
+    paddingHorizontal: 4,
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
   controlsRow: {
     alignItems: "center",
     backgroundColor: "#00323C",
     bottom: 0,
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     gap: 6,
     justifyContent: "center",
     paddingHorizontal: 8,
@@ -325,8 +473,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 8,
-    flexDirection: "row-reverse",
-    gap: 6,
+    flexDirection: "row",
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -340,7 +488,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.gold,
     borderRadius: 7,
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -380,6 +528,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 13.5,
     fontWeight: "800",
+    includeFontPadding: false,
     lineHeight: 46,
     paddingHorizontal: 4,
     textAlign: "right",
@@ -418,5 +567,109 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  // Modal Reader Styles
+  modalOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    maxHeight: "80%",
+    padding: 20,
+    width: "100%",
+  },
+  modalHeader: {
+    alignItems: "center",
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 14,
+  },
+  modalTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalIconWrap: {
+    alignItems: "center",
+    backgroundColor: colors.paleGold,
+    borderRadius: 12,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  modalTitle: {
+    color: colors.ink,
+    fontSize: 17,
+    fontWeight: "900",
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  modalSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  modalCloseBtn: {
+    backgroundColor: colors.paper,
+    borderRadius: 10,
+    padding: 6,
+  },
+  modalScroll: {
+    marginVertical: 12,
+  },
+  modalScrollContent: {
+    gap: 12,
+  },
+  newsItemBox: {
+    backgroundColor: colors.paper,
+    borderColor: colors.line,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  newsItemHeader: {
+    alignItems: "center",
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    paddingBottom: 6,
+  },
+  newsItemIndex: {
+    color: colors.green,
+    fontSize: 12,
+    fontWeight: "800",
+    writingDirection: "rtl",
+  },
+  newsItemDate: {
+    color: colors.muted,
+    fontSize: 11,
+    writingDirection: "rtl",
+  },
+  modalBodyText: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 26,
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end",
+    paddingTop: 8,
+  },
+  modalEditBtn: {
+    flex: 1,
   },
 });

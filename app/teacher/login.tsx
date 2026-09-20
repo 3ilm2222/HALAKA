@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 
 import { AppIcon, colors, FormField, PrimaryButton, uiStyles } from "@/components/app-ui";
@@ -40,8 +49,12 @@ export default function TeacherLoginScreen() {
       if (online) {
         try {
           const result = await supabaseSchool.teacherLogin(pin);
-          await saveCloudTeacherSession(result.sessionToken);
-          await saveOfflineTeacherAccess(pin, result.sessionToken);
+          const token = typeof result === "string" ? result : result?.sessionToken;
+          if (!token) {
+            throw new Error("لم يتم استلام رمز الجلسة من الخادم السحابي");
+          }
+          await saveCloudTeacherSession(token);
+          await saveOfflineTeacherAccess(pin, token);
           loggedIn = true;
         } catch (err) {
           const isNetworkError =
@@ -121,13 +134,17 @@ export default function TeacherLoginScreen() {
           const setupRes = await supabaseSchool.teacherSetup(trimmedPin, displayName.trim() || "المعلم");
           if (setupRes.teacher) {
             const loginRes = await supabaseSchool.teacherLogin(trimmedPin);
-            sessionToken = loginRes.sessionToken;
+            if (loginRes?.sessionToken) {
+              sessionToken = loginRes.sessionToken;
+            }
           }
         } catch {
           // If setup failed because already configured, try logging in
           try {
             const loginRes = await supabaseSchool.teacherLogin(trimmedPin);
-            sessionToken = loginRes.sessionToken;
+            if (loginRes?.sessionToken) {
+              sessionToken = loginRes.sessionToken;
+            }
           } catch {
             // Proceed with local offline setup so teacher is never blocked
           }
@@ -151,82 +168,112 @@ export default function TeacherLoginScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.gate}>
-      <AppIcon name={isCreatingPin ? "key" : "lock"} color={colors.green} size={42} />
-      <Text style={uiStyles.pageTitle}>{isCreatingPin ? "إنشاء رمز سري للمعلم" : "دخول المعلم"}</Text>
-      <Text style={[uiStyles.pageSubtitle, styles.center]}>
-        {isCreatingPin
-          ? "عيّن رمزاً سرياً خاصاً بك كمعلم للوصول إلى بيانات طلابك وسجلاتهم في أي وقت."
-          : "أدخل رمز المعلم للانتقال إلى قائمة الطلاب. يعمل الرمز محلياً في الحلقة دون إنترنت ومع السحابة."}
-      </Text>
-
-      {isCreatingPin && (
-        <FormField
-          label="اسم المعلم / المحفّظ (اختياري)"
-          value={displayName}
-          onChangeText={setDisplayName}
-        />
-      )}
-
-      <FormField
-        label={isCreatingPin ? "الرمز السري الجديد (4 أرقام على الأقل)" : "رمز المعلم"}
-        value={pin}
-        onChangeText={(value) => {
-          setErrorMessage(null);
-          setPin(value);
-        }}
-        secureTextEntry
-        keyboardType="number-pad"
-      />
-
-      {isCreatingPin && (
-        <FormField
-          label="تأكيد الرمز السري"
-          value={confirmPin}
-          onChangeText={(value) => {
-            setErrorMessage(null);
-            setConfirmPin(value);
-          }}
-          secureTextEntry
-          keyboardType="number-pad"
-        />
-      )}
-
-      {errorMessage ? <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text> : null}
-
-      <PrimaryButton
-        label={busy ? "جارٍ المعالجة…" : isCreatingPin ? "حفظ الرمز والدخول" : "دخول"}
-        icon={isCreatingPin ? "check-circle" : "login"}
-        disabled={busy || !pin.trim()}
-        onPress={() => void (isCreatingPin ? handleCreatePin() : handleLogin())}
-      />
-
-      <View style={styles.actionRow}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            setErrorMessage(null);
-            setIsCreatingPin((prev) => !prev);
-          }}
-          style={styles.modeToggleBtn}
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <AppIcon name={isCreatingPin ? "login" : "add-circle-outline"} color={colors.green} size={17} />
-          <Text style={styles.modeToggleText}>
-            {isCreatingPin ? "لديك رمز بالفعل؟ تسجيل الدخول" : "إنشاء أو تعيين رمز سري جديد"}
-          </Text>
-        </Pressable>
-      </View>
+          <View style={styles.gate}>
+            <AppIcon name={isCreatingPin ? "key" : "lock"} color={colors.green} size={42} />
+            <Text style={uiStyles.pageTitle}>{isCreatingPin ? "إنشاء رمز سري للمعلم" : "دخول المعلم"}</Text>
+            <Text style={[uiStyles.pageSubtitle, styles.center]}>
+              {isCreatingPin
+                ? "عيّن رمزاً سرياً خاصاً بك كمعلم للوصول إلى بيانات طلابك وسجلاتهم في أي وقت."
+                : "أدخل رمز المعلم للانتقال إلى قائمة الطلاب. يعمل الرمز محلياً في الحلقة دون إنترنت ومع السحابة."}
+            </Text>
 
-      <Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={styles.switchLink}>
-        <AppIcon name="family-restroom" color={colors.gold} size={17} />
-        <Text style={styles.switchText}>العودة إلى دخول ولي الأمر</Text>
-      </Pressable>
+            {isCreatingPin && (
+              <FormField
+                label="اسم المعلم / المحفّظ (اختياري)"
+                value={displayName}
+                onChangeText={setDisplayName}
+              />
+            )}
+
+            <FormField
+              label={isCreatingPin ? "الرمز السري الجديد (4 أرقام على الأقل)" : "رمز المعلم"}
+              value={pin}
+              onChangeText={(value) => {
+                setErrorMessage(null);
+                setPin(value);
+              }}
+              secureTextEntry
+              keyboardType="number-pad"
+            />
+
+            {isCreatingPin && (
+              <FormField
+                label="تأكيد الرمز السري"
+                value={confirmPin}
+                onChangeText={(value) => {
+                  setErrorMessage(null);
+                  setConfirmPin(value);
+                }}
+                secureTextEntry
+                keyboardType="number-pad"
+              />
+            )}
+
+            {errorMessage ? <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text> : null}
+
+            <PrimaryButton
+              label={busy ? "جارٍ المعالجة…" : isCreatingPin ? "حفظ الرمز والدخول" : "دخول"}
+              icon={isCreatingPin ? "check-circle" : "login"}
+              disabled={busy || !pin.trim()}
+              onPress={() => void (isCreatingPin ? handleCreatePin() : handleLogin())}
+            />
+
+            <View style={styles.actionRow}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setErrorMessage(null);
+                  setIsCreatingPin((prev) => !prev);
+                }}
+                style={styles.modeToggleBtn}
+              >
+                <AppIcon name={isCreatingPin ? "login" : "add-circle-outline"} color={colors.green} size={17} />
+                <Text style={styles.modeToggleText}>
+                  {isCreatingPin ? "لديك رمز بالفعل؟ تسجيل الدخول" : "إنشاء أو تعيين رمز سري جديد"}
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={styles.switchLink}>
+              <AppIcon name="family-restroom" color={colors.gold} size={17} />
+              <Text style={styles.switchText}>العودة إلى دخول ولي الأمر</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  gate: { alignItems: "center", backgroundColor: colors.paper, gap: 14, justifyContent: "center", padding: 24 },
+  container: {
+    backgroundColor: colors.paper,
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  gate: {
+    alignItems: "center",
+    backgroundColor: colors.paper,
+    gap: 14,
+    justifyContent: "center",
+    padding: 24,
+  },
   center: { textAlign: "center" },
   actionRow: { marginTop: 4, alignItems: "center" },
   modeToggleBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12 },
@@ -235,3 +282,4 @@ const styles = StyleSheet.create({
   switchText: { color: colors.gold, fontSize: 13, fontWeight: "900", textDecorationLine: "underline", writingDirection: "rtl" },
   error: { color: colors.rose, fontSize: 13, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
 });
+

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 
 import { AppIcon, colors, FormField, PrimaryButton, SecondaryButton, Surface, uiStyles } from "@/components/app-ui";
+import { AppUpdateBanner } from "@/components/app-update-banner";
 import { BoardCanvas } from "@/components/board-canvas";
 import { NewsTicker } from "@/components/news-ticker";
 import { ScreenContainer } from "@/components/screen-container";
+import { checkForAppUpdate } from "@/lib/app-update-service";
+import { type AppUpdateInfo } from "@/lib/app-version";
 import { clearCloudParentSession, loadCloudParentSession, saveCloudParentSession } from "@/lib/cloud-parent-session";
 import { type BoardElement } from "@/lib/app-types";
 import { currentMonthKey, monthLabel } from "@/lib/months";
@@ -28,6 +31,16 @@ export default function CloudParentScreen() {
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [newsVisible, setNewsVisible] = useState(true);
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [appUpdate, setAppUpdate] = useState<AppUpdateInfo | null>(null);
+
+  const checkUpdate = useCallback(async () => {
+    try {
+      const res = await checkForAppUpdate();
+      setAppUpdate(res.hasUpdate ? res.update : null);
+    } catch {
+      // Non-blocking update check
+    }
+  }, []);
 
   const refresh = useCallback(async (token = sessionToken) => {
     if (!token) return;
@@ -35,7 +48,8 @@ export default function CloudParentScreen() {
     setSnapshot(next);
     setConnectionError(null);
     setLastUpdated(new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }));
-  }, [sessionToken]);
+    void checkUpdate();
+  }, [sessionToken, checkUpdate]);
 
   const registerPushToken = useCallback(async (token: string) => {
     const pushToken = await prepareNotifications();
@@ -87,10 +101,14 @@ export default function CloudParentScreen() {
     setBusy(true);
     try {
       const result = await supabaseSchool.parentLogin(name, pin);
-      await saveCloudParentSession(result.sessionToken);
-      setSessionToken(result.sessionToken);
-      await refresh(result.sessionToken);
-      void registerPushToken(result.sessionToken).catch(() => undefined);
+      const token = typeof result === "string" ? result : result?.sessionToken;
+      if (!token) {
+        throw new Error("لم يتم استلام رمز الجلسة من الخادم السحابي");
+      }
+      await saveCloudParentSession(token);
+      setSessionToken(token);
+      await refresh(token);
+      void registerPushToken(token).catch(() => undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : "تحقق من الاسم والرمز";
       setErrorMessage(message);
@@ -144,15 +162,87 @@ export default function CloudParentScreen() {
   const isViewingPreviousMonth = Boolean(selectedBoard && sortedBoards[0] && selectedBoard.month_key !== sortedBoards[0].month_key);
 
   if (loading) return <ScreenContainer className="items-center justify-center"><Text style={uiStyles.pageSubtitle}>جارٍ التحقق من السجل السحابي…</Text></ScreenContainer>;
-  if (sessionToken && !snapshot) return <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.gate}><AppIcon name="cloud-off" color={colors.rose} size={42} /><Text style={uiStyles.pageTitle}>السجل يحتاج إلى اتصال</Text><Text style={[uiStyles.pageSubtitle, styles.center]}>{connectionError ?? "تعذر تحميل السجل من السحابة."}</Text><PrimaryButton label="إعادة المحاولة" icon="refresh" disabled={busy} onPress={() => { setBusy(true); void refresh().catch(() => setConnectionError("ما زال الاتصال غير متاح.")).finally(() => setBusy(false)); }} /><SecondaryButton label="تسجيل الخروج" onPress={confirmLogout} /><Pressable onPress={() => router.replace("/teacher/login")}><Text style={styles.switchPortal}>دخول المعلم</Text></Pressable></ScreenContainer>;
-  if (!sessionToken || !snapshot) return <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.gate}><AppIcon name="cloud-done" color={colors.gold} size={42} /><Text style={uiStyles.pageTitle}>بوابة ولي الأمر</Text><Text style={[uiStyles.pageSubtitle, styles.center]}>هذه الواجهة سحابية للعرض فقط، وتحتاج اتصالاً بالإنترنت لعرض آخر تحديثات المعلم.</Text><FormField label="اسم الطالب" value={name} onChangeText={(value) => { setErrorMessage(null); setName(value); }} /><FormField label="الرمز السري" value={pin} onChangeText={(value) => { setErrorMessage(null); setPin(value); }} secureTextEntry />{errorMessage ? <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text> : null}<PrimaryButton label={busy ? "جارٍ الدخول…" : "دخول"} icon="login" disabled={busy} onPress={login} /><Pressable accessibilityRole="button" onPress={() => router.replace("/teacher/login")} style={styles.switchLink}><AppIcon name="auto-stories" color={colors.green} size={17} /><Text style={styles.switchPortal}>دخول المعلم</Text></Pressable></ScreenContainer>;
+  if (sessionToken && !snapshot)
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.gateWrapper}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboardView}>
+          <ScrollView contentContainerStyle={styles.gateScroll} keyboardShouldPersistTaps="handled">
+            <View style={styles.gate}>
+              <AppUpdateBanner update={appUpdate} onDismiss={() => setAppUpdate(null)} />
+              <AppIcon name="cloud-off" color={colors.rose} size={42} />
+              <Text style={uiStyles.pageTitle}>السجل يحتاج إلى اتصال</Text>
+              <Text style={[uiStyles.pageSubtitle, styles.center]}>{connectionError ?? "تعذر تحميل السجل من السحابة."}</Text>
+              <PrimaryButton
+                label="إعادة المحاولة"
+                icon="refresh"
+                disabled={busy}
+                onPress={() => {
+                  setBusy(true);
+                  void refresh()
+                    .catch(() => setConnectionError("ما زال الاتصال غير متاح."))
+                    .finally(() => setBusy(false));
+                }}
+              />
+              <SecondaryButton label="تسجيل الخروج" onPress={confirmLogout} />
+              <Pressable onPress={() => router.replace("/teacher/login")}>
+                <Text style={styles.switchPortal}>دخول المعلم</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </ScreenContainer>
+    );
+
+  if (!sessionToken || !snapshot)
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.gateWrapper}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboardView}>
+          <ScrollView contentContainerStyle={styles.gateScroll} keyboardShouldPersistTaps="handled">
+            <View style={styles.gate}>
+              <AppUpdateBanner update={appUpdate} onDismiss={() => setAppUpdate(null)} />
+              <AppIcon name="cloud-done" color={colors.gold} size={42} />
+              <Text style={uiStyles.pageTitle}>بوابة ولي الأمر</Text>
+              <Text style={[uiStyles.pageSubtitle, styles.center]}>
+                هذه الواجهة سحابية للعرض فقط، وتحتاج اتصالاً بالإنترنت لعرض آخر تحديثات المعلم.
+              </Text>
+              <FormField
+                label="اسم الطالب"
+                value={name}
+                onChangeText={(value) => {
+                  setErrorMessage(null);
+                  setName(value);
+                }}
+              />
+              <FormField
+                label="الرمز السري"
+                value={pin}
+                onChangeText={(value) => {
+                  setErrorMessage(null);
+                  setPin(value);
+                }}
+                secureTextEntry
+              />
+              {errorMessage ? <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text> : null}
+              <PrimaryButton label={busy ? "جارٍ الدخول…" : "دخول"} icon="login" disabled={busy} onPress={login} />
+              <Pressable accessibilityRole="button" onPress={() => router.replace("/teacher/login")} style={styles.switchLink}>
+                <AppIcon name="auto-stories" color={colors.green} size={17} />
+                <Text style={styles.switchPortal}>دخول المعلم</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </ScreenContainer>
+    );
 
   const attendance = snapshot.attendance.map((item) => ({ dateKey: item.date_key, morningAbsent: item.morning_absent, eveningAbsent: item.evening_absent }));
-  return <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.page}><ScrollView style={styles.scroll} contentContainerStyle={styles.content}><View style={styles.header}><View><Text style={uiStyles.pageTitle}>{snapshot.student.name}</Text><Text style={uiStyles.pageSubtitle}>{snapshot.student.age} سنة · عرض سحابي فقط</Text></View><View style={styles.headerActions}><Pressable accessibilityLabel={newsVisible ? "إخفاء شريط الأخبار" : "إظهار شريط الأخبار"} disabled={!snapshot.news.length} onPress={() => setNewsVisible((current) => !current)} style={[styles.tickerToggle, !snapshot.news.length && styles.tickerToggleDisabled]}><AppIcon name={newsVisible ? "visibility-off" : "visibility"} color={newsVisible ? colors.gold : colors.muted} size={19} /><Text style={styles.tickerToggleText}>{newsVisible ? "إخفاء الأخبار" : "إظهار الأخبار"}</Text></Pressable><Pressable accessibilityLabel="تحديث السجل من السحابة" disabled={busy} onPress={() => void manualRefresh()} style={styles.refreshButton}><AppIcon name="refresh" color={colors.green} size={19} /><Text style={styles.refreshButtonText}>{busy ? "جارٍ التحديث" : "تحديث"}</Text></Pressable><Pressable accessibilityLabel="تسجيل الخروج" onPress={confirmLogout} style={styles.icon}><AppIcon name="logout" color={colors.rose} /></Pressable></View></View><Surface style={styles.updateCard}><AppIcon name={connectionError ? "cloud-off" : "cloud-done"} color={connectionError ? colors.rose : colors.green} size={18} /><View style={styles.updateCopy}><Text style={styles.updateTitle}>{connectionError ? "بانتظار عودة الاتصال" : "يتحقق من تحديثات المعلم تلقائياً كل دقيقة"}</Text><Text style={styles.updateText}>{connectionError ?? (lastUpdated ? `آخر تحديث: ${lastUpdated}` : "متصل بالسحابة")}</Text></View></Surface><Surface style={styles.boardCard}><View style={styles.boardCardHeader}><View style={styles.boardCardTitles}><Text style={styles.section}>السبورة وسجل الحفظ</Text>{selectedBoard ? <Text style={styles.boardCardSubtitle}>{selectedBoard.label || monthLabel(selectedBoard.month_key)}</Text> : null}</View>{sortedBoards.length > 1 ? <View style={styles.boardCountBadge}><AppIcon name="history" color={colors.green} size={14} /><Text style={styles.boardCountText}>{sortedBoards.length} أشهر متوفرة</Text></View> : null}</View>{sortedBoards.length > 1 ? <View style={styles.monthsSection}><Text style={styles.monthsSectionTitle}>سجل الأشهر السابقة:</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthsScroll}>{sortedBoards.map((b, index) => { const isSelected = b.month_key === activeMonthKey; const isLatest = index === 0; const label = b.label || monthLabel(b.month_key); return <Pressable key={b.month_key} accessibilityRole="button" accessibilityLabel={`عرض سبورة شهر ${label}`} onPress={() => setSelectedMonthKey(b.month_key)} style={[styles.monthChip, isSelected && styles.monthChipActive]}><AppIcon name={isSelected ? "event-available" : "calendar-today"} color={isSelected ? colors.white : colors.green} size={15} /><Text style={[styles.monthChipText, isSelected && styles.monthChipTextActive]}>{label}</Text>{isLatest ? <View style={[styles.latestPill, isSelected && styles.latestPillActive]}><Text style={[styles.latestPillText, isSelected && styles.latestPillTextActive]}>الشهر الحالي</Text></View> : null}</Pressable>; })}</ScrollView></View> : null}{isViewingPreviousMonth && selectedBoard ? <View style={styles.archiveNotice}><View style={styles.archiveNoticeInfo}><AppIcon name="history" color="#80601D" size={16} /><Text style={styles.archiveNoticeText}>أنت تستعرض أرشيف شهر {selectedBoard.label || monthLabel(selectedBoard.month_key)}</Text></View><Pressable accessibilityRole="button" onPress={() => setSelectedMonthKey(sortedBoards[0]?.month_key ?? null)} style={styles.returnToLatestBtn}><Text style={styles.returnToLatestText}>العودة للشهر الحالي</Text><AppIcon name="arrow-back" color={colors.green} size={14} /></Pressable></View> : null}{selectedBoard ? <BoardCanvas key={`${selectedBoard.id}-${selectedBoard.updated_at ?? JSON.stringify(selectedBoard.elements)}`} boardKey={selectedBoard.month_key} initialElements={selectedBoard.elements as BoardElement[]} initialCanvasHeight={selectedBoard.canvas_height} initialThemeKey={selectedBoard.theme_key} initialThemeColors={selectedBoard.theme as never} attendanceRecords={attendance} editable={false} /> : <Text style={uiStyles.pageSubtitle}>لم يضف المعلم سبورة لهذا الطالب بعد.</Text>}</Surface><Surface style={styles.messageCard}><Text style={styles.section}>مراسلة المعلم</Text>{snapshot.messages.slice(-6).map((item) => <View key={item.id} style={[styles.message, item.sender_role === "teacher" ? styles.teacher : styles.parent]}><Text style={styles.role}>{item.sender_role === "teacher" ? "المعلم" : "ولي الأمر"}</Text><Text style={styles.messageText}>{item.content}</Text></View>)}<TextInput value={message} onChangeText={setMessage} multiline textAlign="right" placeholder="اكتب رسالتك للمعلم…" placeholderTextColor={colors.muted} style={styles.input} /><PrimaryButton label={busy ? "جارٍ الإرسال…" : "إرسال"} icon="send" disabled={busy || !message.trim()} onPress={send} /></Surface></ScrollView><NewsTicker news={snapshot.news} visible={newsVisible} /><Modal visible={logoutVisible} transparent animationType="fade" onRequestClose={() => setLogoutVisible(false)}><View style={styles.logoutOverlay}><Surface style={styles.logoutSheet}><AppIcon name="logout" color={colors.rose} size={30} /><Text style={styles.logoutTitle}>تسجيل الخروج</Text><Text style={[uiStyles.pageSubtitle, styles.center]}>هل تريد تسجيل الخروج من بوابة ولي الأمر؟</Text><View style={styles.logoutActions}><SecondaryButton label="إلغاء" onPress={() => setLogoutVisible(false)} /><PrimaryButton label="تسجيل الخروج" icon="logout" onPress={() => { setLogoutVisible(false); void logout(); }} /></View></Surface></View></Modal></ScreenContainer>;
+  return <ScreenContainer edges={["top", "bottom", "left", "right"]} style={styles.page}><ScrollView style={styles.scroll} contentContainerStyle={styles.content}><View style={styles.header}><View><Text style={uiStyles.pageTitle}>{snapshot.student.name}</Text><Text style={uiStyles.pageSubtitle}>{snapshot.student.age} سنة · عرض سحابي فقط</Text></View><View style={styles.headerActions}><Pressable accessibilityLabel={newsVisible ? "إخفاء شريط الأخبار" : "إظهار شريط الأخبار"} disabled={!snapshot.news.length} onPress={() => setNewsVisible((current) => !current)} style={[styles.tickerToggle, !snapshot.news.length && styles.tickerToggleDisabled]}><AppIcon name={newsVisible ? "visibility-off" : "visibility"} color={newsVisible ? colors.gold : colors.muted} size={19} /><Text style={styles.tickerToggleText}>{newsVisible ? "إخفاء الأخبار" : "إظهار الأخبار"}</Text></Pressable><Pressable accessibilityLabel="تحديث السجل من السحابة" disabled={busy} onPress={() => void manualRefresh()} style={styles.refreshButton}><AppIcon name="refresh" color={colors.green} size={19} /><Text style={styles.refreshButtonText}>{busy ? "جارٍ التحديث" : "تحديث"}</Text></Pressable><Pressable accessibilityLabel="تسجيل الخروج" onPress={confirmLogout} style={styles.icon}><AppIcon name="logout" color={colors.rose} /></Pressable></View></View><AppUpdateBanner update={appUpdate} onDismiss={() => setAppUpdate(null)} /><Surface style={styles.updateCard}><AppIcon name={connectionError ? "cloud-off" : "cloud-done"} color={connectionError ? colors.rose : colors.green} size={18} /><View style={styles.updateCopy}><Text style={styles.updateTitle}>{connectionError ? "بانتظار عودة الاتصال" : "يتحقق من تحديثات المعلم تلقائياً كل دقيقة"}</Text><Text style={styles.updateText}>{connectionError ?? (lastUpdated ? `آخر تحديث: ${lastUpdated}` : "متصل بالسحابة")}</Text></View></Surface><Surface style={styles.boardCard}><View style={styles.boardCardHeader}><View style={styles.boardCardTitles}><Text style={styles.section}>السبورة وسجل الحفظ</Text>{selectedBoard ? <Text style={styles.boardCardSubtitle}>{selectedBoard.label || monthLabel(selectedBoard.month_key)}</Text> : null}</View>{sortedBoards.length > 1 ? <View style={styles.boardCountBadge}><AppIcon name="history" color={colors.green} size={14} /><Text style={styles.boardCountText}>{sortedBoards.length} أشهر متوفرة</Text></View> : null}</View>{sortedBoards.length > 1 ? <View style={styles.monthsSection}><Text style={styles.monthsSectionTitle}>سجل الأشهر السابقة:</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthsScroll}>{sortedBoards.map((b, index) => { const isSelected = b.month_key === activeMonthKey; const isLatest = index === 0; const label = b.label || monthLabel(b.month_key); return <Pressable key={b.month_key} accessibilityRole="button" accessibilityLabel={`عرض سبورة شهر ${label}`} onPress={() => setSelectedMonthKey(b.month_key)} style={[styles.monthChip, isSelected && styles.monthChipActive]}><AppIcon name={isSelected ? "event-available" : "calendar-today"} color={isSelected ? colors.white : colors.green} size={15} /><Text style={[styles.monthChipText, isSelected && styles.monthChipTextActive]}>{label}</Text>{isLatest ? <View style={[styles.latestPill, isSelected && styles.latestPillActive]}><Text style={[styles.latestPillText, isSelected && styles.latestPillTextActive]}>الشهر الحالي</Text></View> : null}</Pressable>; })}</ScrollView></View> : null}{isViewingPreviousMonth && selectedBoard ? <View style={styles.archiveNotice}><View style={styles.archiveNoticeInfo}><AppIcon name="history" color="#80601D" size={16} /><Text style={styles.archiveNoticeText}>أنت تستعرض أرشيف شهر {selectedBoard.label || monthLabel(selectedBoard.month_key)}</Text></View><Pressable accessibilityRole="button" onPress={() => setSelectedMonthKey(sortedBoards[0]?.month_key ?? null)} style={styles.returnToLatestBtn}><Text style={styles.returnToLatestText}>العودة للشهر الحالي</Text><AppIcon name="arrow-back" color={colors.green} size={14} /></Pressable></View> : null}{selectedBoard ? <BoardCanvas key={`${selectedBoard.id}-${selectedBoard.updated_at ?? JSON.stringify(selectedBoard.elements)}`} boardKey={selectedBoard.month_key} initialElements={selectedBoard.elements as BoardElement[]} initialCanvasHeight={selectedBoard.canvas_height} initialThemeKey={selectedBoard.theme_key} initialThemeColors={selectedBoard.theme as never} attendanceRecords={attendance} editable={false} /> : <Text style={uiStyles.pageSubtitle}>لم يضف المعلم سبورة لهذا الطالب بعد.</Text>}</Surface><Surface style={styles.messageCard}><Text style={styles.section}>مراسلة المعلم</Text>{snapshot.messages.slice(-6).map((item) => <View key={item.id} style={[styles.message, item.sender_role === "teacher" ? styles.teacher : styles.parent]}><Text style={styles.role}>{item.sender_role === "teacher" ? "المعلم" : "ولي الأمر"}</Text><Text style={styles.messageText}>{item.content}</Text></View>)}<TextInput value={message} onChangeText={setMessage} multiline textAlign="right" placeholder="اكتب رسالتك للمعلم…" placeholderTextColor={colors.muted} style={styles.input} /><PrimaryButton label={busy ? "جارٍ الإرسال…" : "إرسال"} icon="send" disabled={busy || !message.trim()} onPress={send} /></Surface></ScrollView><NewsTicker news={snapshot.news} visible={newsVisible} /><Modal visible={logoutVisible} transparent animationType="fade" onRequestClose={() => setLogoutVisible(false)}><View style={styles.logoutOverlay}><Surface style={styles.logoutSheet}><AppIcon name="logout" color={colors.rose} size={30} /><Text style={styles.logoutTitle}>تسجيل الخروج</Text><Text style={[uiStyles.pageSubtitle, styles.center]}>هل تريد تسجيل الخروج من بوابة ولي الأمر؟</Text><View style={styles.logoutActions}><SecondaryButton label="إلغاء" onPress={() => setLogoutVisible(false)} /><PrimaryButton label="تسجيل الخروج" icon="logout" onPress={() => { setLogoutVisible(false); void logout(); }} /></View></Surface></View></Modal></ScreenContainer>;
 }
 
 const styles = StyleSheet.create({
   page: { backgroundColor: colors.paper },
+  gateWrapper: { backgroundColor: colors.paper, flex: 1 },
+  keyboardView: { flex: 1 },
+  gateScroll: { flexGrow: 1, justifyContent: "center" },
   gate: { alignItems: "center", backgroundColor: colors.paper, gap: 16, justifyContent: "center", padding: 24 },
   center: { textAlign: "center" },
   switchLink: { alignItems: "center", flexDirection: "row", gap: 5, padding: 6 },

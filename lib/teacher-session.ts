@@ -7,12 +7,17 @@ function webStore() {
   return typeof globalThis !== "undefined" && "localStorage" in globalThis ? globalThis.localStorage : null;
 }
 
-export async function saveTeacherSessionToken(token: string) {
-  if (Platform.OS === "web") {
-    webStore()?.setItem(TEACHER_SESSION_KEY, token);
+export async function saveTeacherSessionToken(token: unknown) {
+  const strToken = typeof token === "string" ? token.trim() : token ? JSON.stringify(token) : "";
+  if (!strToken) {
+    await clearTeacherSessionToken();
     return;
   }
-  await SecureStore.setItemAsync(TEACHER_SESSION_KEY, token);
+  if (Platform.OS === "web") {
+    webStore()?.setItem(TEACHER_SESSION_KEY, strToken);
+    return;
+  }
+  await SecureStore.setItemAsync(TEACHER_SESSION_KEY, strToken);
 }
 
 export async function loadTeacherSessionToken() {

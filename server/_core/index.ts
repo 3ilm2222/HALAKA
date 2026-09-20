@@ -80,6 +80,69 @@ async function startServer() {
     }
   });
 
+  const appUpdateFilePath = path.resolve(process.cwd(), "data", "app-update.json");
+
+  function getStoredAppUpdate() {
+    try {
+      if (fs.existsSync(appUpdateFilePath)) {
+        const raw = fs.readFileSync(appUpdateFilePath, "utf8");
+        return JSON.parse(raw);
+      }
+    } catch {
+      // Fallback
+    }
+    return {
+      latestVersionName: "1.0.0",
+      latestVersionCode: 1,
+      downloadUrl: "",
+      releaseNotes: "",
+      isMandatory: false,
+      updatedAt: null,
+    };
+  }
+
+  function saveStoredAppUpdate(data: Record<string, unknown>) {
+    try {
+      const dir = path.dirname(appUpdateFilePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(appUpdateFilePath, JSON.stringify(data, null, 2), "utf8");
+    } catch (err) {
+      console.error("Failed to save app-update.json:", err);
+    }
+  }
+
+  app.get("/api/app-update", (_req, res) => {
+    const update = getStoredAppUpdate();
+    res.json({ success: true, update });
+  });
+
+  app.post("/api/app-update", (req, res) => {
+    try {
+      const {
+        latestVersionName,
+        latestVersionCode,
+        downloadUrl,
+        releaseNotes,
+        isMandatory,
+      } = req.body ?? {};
+
+      const current = getStoredAppUpdate();
+      const updated = {
+        latestVersionName: String(latestVersionName ?? current.latestVersionName ?? "1.0.0").trim(),
+        latestVersionCode: Number(latestVersionCode) || Number(current.latestVersionCode) || 1,
+        downloadUrl: String(downloadUrl ?? "").trim(),
+        releaseNotes: String(releaseNotes ?? "").trim(),
+        isMandatory: Boolean(isMandatory),
+        updatedAt: new Date().toISOString(),
+      };
+
+      saveStoredAppUpdate(updated);
+      res.json({ success: true, update: updated });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "فشل حفظ بيانات التحديث" });
+    }
+  });
+
   // Proxy web and static assets to Metro bundler on port 8081 or serve exported dist
   const isProduction = process.env.NODE_ENV === "production";
   const metroPort = process.env.EXPO_PORT || "8081";
